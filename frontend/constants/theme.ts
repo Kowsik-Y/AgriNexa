@@ -10,30 +10,62 @@ const tintColorDark = '#34D399'; // Emerald 400
 
 export const Colors = {
   light: {
-    text: '#1E293B', // Slate 800
     background: '#F8FAFC', // Slate 50
-    tint: tintColorLight,
-    icon: '#64748B', // Slate 500
-    tabIconDefault: '#94A3B8', // Slate 400
-    tabIconSelected: tintColorLight,
+    foreground: '#0F172A', // Slate 900
     card: '#FFFFFF',
+    cardForeground: '#0F172A',
+    popover: '#FFFFFF',
+    popoverForeground: '#0F172A',
+    primary: tintColorLight,
+    primaryForeground: '#FFFFFF',
+    secondary: '#F1F5F9', // Slate 100
+    secondaryForeground: '#0F172A',
+    muted: '#F1F5F9',
+    mutedForeground: '#64748B', // Slate 500
+    accent: '#F1F5F9',
+    accentForeground: '#0F172A',
+    destructive: '#EF4444', // Red 500
+    destructiveForeground: '#FFFFFF',
     border: '#E2E8F0', // Slate 200
-    notification: '#EF4444', // Red 500
+    input: '#E2E8F0',
+    ring: tintColorLight,
+    text: '#1E293B',
+    tint: tintColorLight,
+    icon: '#64748B',
+    tabIconDefault: '#94A3B8',
+    tabIconSelected: tintColorLight,
     success: '#10B981',
     warning: '#F59E0B',
+    notification: '#EF4444',
   },
   dark: {
-    text: '#F1F5F9', // Slate 100
     background: '#0F172A', // Slate 900
-    tint: tintColorDark,
-    icon: '#94A3B8', // Slate 400
-    tabIconDefault: '#475569', // Slate 600
-    tabIconSelected: tintColorDark,
+    foreground: '#F1F5F9', // Slate 100
     card: '#1E293B', // Slate 800
+    cardForeground: '#F1F5F9',
+    popover: '#0F172A',
+    popoverForeground: '#F1F5F9',
+    primary: tintColorDark,
+    primaryForeground: '#0F172A',
+    secondary: '#1E293B',
+    secondaryForeground: '#F1F5F9',
+    muted: '#1E293B',
+    mutedForeground: '#94A3B8', // Slate 400
+    accent: '#1E293B',
+    accentForeground: '#F1F5F9',
+    destructive: '#7F1D1D', // Red 900
+    destructiveForeground: '#F1F5F9',
     border: '#334155', // Slate 700
-    notification: '#F87171', // Red 400
+    input: '#334155',
+    ring: tintColorDark,
+    text: '#F1F5F9',
+    tint: tintColorDark,
+    icon: '#94A3B8',
+    tabIconDefault: '#475569',
+    tabIconSelected: tintColorDark,
     success: '#34D399',
     warning: '#FBBF24',
+    notification: '#F87171',
   },
 };
 

@@ -56,7 +56,7 @@ def get_password_hash(password: str):
     # Bcrypt has a 72-byte limit
     pw_bytes = password.encode('utf-8')
     if len(pw_bytes) > 72:
-        pw_bytes = pw_bytes[:72]
+        pw_bytes = pw_bytes[0:72]
     
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(pw_bytes, salt).decode('utf-8')
@@ -68,41 +68,19 @@ def create_access_token(data: dict):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
+        user_id: Optional[str] = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
         return user_id
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-# Models
-class UserProfile(BaseModel):
-    user_id: str
-    name: Optional[str] = None
-    email: Optional[str] = None
-    appLang: str = "English"
-    district: Optional[str] = ""
-    crops: Optional[str] = ""
-    onboarded: bool = False
-
-class UserRegister(BaseModel):
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    password: str
-    name: Optional[str] = None
-
-class UserLogin(BaseModel):
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    password: str
-
-class GoogleLogin(BaseModel):
-    user_id: str
-    email: Optional[str] = None
-    name: Optional[str] = None
+from schemas.user import UserProfile, UserRegister, UserLogin, GoogleLogin
+from schemas.auth import Token, TokenData
+from models.user import get_user_by_id, get_user_by_identifier, create_user, update_user, verify_password, get_password_hash
 
 # Enable CORS for React Native
 app.add_middleware(
@@ -115,41 +93,17 @@ app.add_middleware(
 
 @app.post("/auth/register")
 async def register(user: UserRegister):
-    identifier = user.email or user.phone
-    if not identifier:
-        raise HTTPException(status_code=400, detail="Email or Phone is required")
-    
-    # Check if user already exists
-    existing = await db.users.find_one({"$or": [{"email": user.email}, {"phone": user.phone}]})
+    existing = await get_user_by_identifier(user.email, user.phone)
     if existing:
         raise HTTPException(status_code=400, detail="User already exists")
     
-    user_id = f"user_{hash(identifier) % 1000000}" # Simple stable ID for custom users
-    hashed_pwd = get_password_hash(user.password)
-    
-    new_user = {
-        "user_id": user_id,
-        "email": user.email,
-        "phone": user.phone,
-        "name": user.name,
-        "hashed_password": hashed_pwd,
-        "onboarded": False,
-        "appLang": "English",
-        "district": "",
-        "crops": ""
-    }
-    
-    await db.users.insert_one(new_user)
+    user_id = await create_user(user)
     token = create_access_token(data={"sub": user_id})
     return {"access_token": token, "token_type": "bearer", "user_id": user_id}
 
 @app.post("/auth/login")
 async def login(user: UserLogin):
-    identifier = user.email or user.phone
-    if not identifier:
-        raise HTTPException(status_code=400, detail="Email or Phone is required")
-    
-    db_user = await db.users.find_one({"$or": [{"email": user.email}, {"phone": user.phone}]})
+    db_user = await get_user_by_identifier(user.email, user.phone)
     if not db_user or not verify_password(user.password, db_user.get("hashed_password")):
         raise HTTPException(status_code=400, detail="Incorrect credentials")
     
@@ -160,8 +114,7 @@ async def login(user: UserLogin):
 async def google_auth(login: GoogleLogin):
     token = create_access_token(data={"sub": login.user_id})
     
-    # Check if profile exists, if not create basic one
-    existing = await db.users.find_one({"user_id": login.user_id})
+    existing = await get_user_by_id(login.user_id)
     if not existing:
         await db.users.insert_one({
             "user_id": login.user_id,
@@ -169,18 +122,21 @@ async def google_auth(login: GoogleLogin):
             "name": login.name,
             "onboarded": False,
             "appLang": "English",
+            "village": "",
             "district": "",
-            "crops": ""
+            "state": "",
+            "crops": "",
+            "interests": []
         })
     
-    return {"access_token": token, "token_type": "bearer"}
+    return {"access_token": token, "token_type": "bearer", "user_id": login.user_id}
 
 @app.get("/profile/{user_id}")
 async def get_profile(user_id: str, current_user: str = Depends(get_current_user)):
     if user_id != current_user:
         raise HTTPException(status_code=403, detail="Not authorized to view this profile")
     
-    profile = await db.users.find_one({"user_id": user_id})
+    profile = await get_user_by_id(user_id)
     if profile:
         profile.pop("_id", None)
         return profile
@@ -192,12 +148,9 @@ async def save_profile(profile: UserProfile, current_user: str = Depends(get_cur
         raise HTTPException(status_code=403, detail="Not authorized to modify this profile")
     
     try:
-        existing = await db.users.find_one({"user_id": profile.user_id})
+        existing = await get_user_by_id(profile.user_id)
         if existing:
-            await db.users.update_one(
-                {"user_id": profile.user_id}, 
-                {"$set": profile.dict(exclude_unset=True)}
-            )
+            await update_user(profile.user_id, profile.dict(exclude_unset=True))
             return {"status": "updated"}
         else:
             await db.users.insert_one(profile.dict())

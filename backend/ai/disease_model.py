@@ -6,15 +6,9 @@ class DiseaseModel:
         # In a real app, you would load a trained .pth or .h5 model here
         # self.model = torch.load('model.pth')
         # self.model.eval()
-        self.classes = ['Healthy', 'Leaf Blight', 'Rust', 'Powdery Mildew', 'Caterpillar Damage']
+        self.classes = ['Healthy', 'Leaf Blight', 'Rust', 'Powdery Mildew', 'Caterpillar Damage', 'Downy Mildew', 'Leaf Spot', 'Mosaic Virus']
 
     def predict(self, image_bytes: bytes):
-        # Mocking the preprocessing and inference
-        # img = Image.open(io.BytesIO(image_bytes))
-        # result = self.model(img)
-        
-        # Placeholder logic based on "simulated" analysis
-        # For now, return a random or fixed disease for demonstration
         import random
         disease = random.choice(self.classes[1:])
         confidence = random.uniform(0.85, 0.98)
@@ -35,6 +29,18 @@ class DiseaseModel:
             'Caterpillar Damage': {
                 'en': 'Use Bacillus thuringiensis (Bt) or hand-pick pests.',
                 'ta': 'பேசிலஸ் துரிஞ்சியென்சிஸ் (Bt) ஐப் பயன்படுத்தவும் அல்லது பூச்சிகளை கையால் எடுக்கவும்.'
+            },
+            'Downy Mildew': {
+                'en': 'Apply Mancozeb or Ridomil Gold. Avoid overhead watering.',
+                'ta': 'மேன்கோசெப் அல்லது ரிடோமில் கோல்ட் பயன்படுத்தவும். செடியின் மேல் நீர் பாய்ச்சுவதைத் தவிர்க்கவும்.'
+            },
+            'Leaf Spot': {
+                'en': 'Remove infected debris and use Chlorothalonil fungicide.',
+                'ta': 'பாதிக்கப்பட்ட இலைகளை அகற்றிவிட்டு குளோரோதலோனில் பூஞ்சைக் கொல்லியைப் பயன்படுத்தவும்.'
+            },
+            'Mosaic Virus': {
+                'en': 'Control aphids and remove infected plants immediately.',
+                'ta': 'அசுவினிப் பூச்சிகளைக் கட்டுப்படுத்தி, பாதிக்கப்பட்ட செடிகளை உடனடியாக அகற்றவும்.'
             }
         }
         

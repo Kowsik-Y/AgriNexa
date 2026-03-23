@@ -1,18 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { Audio } from 'expo-av';
-import { Mic, MessageSquare, History, Play, Pause, AlertCircle, Info } from 'lucide-react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Mic, AlertCircle } from 'lucide-react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { Typography } from '@/components/ui/Typography';
+import { Card, CardContent } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { KeyboardResponsiveView } from '@/components/ui/KeyboardResponsiveView';
 import { useApi } from '@/hooks/use-api';
-import { useThemeColors } from '@/hooks/use-theme-colors';
-
+import { useTheme } from '@/hooks/use-theme';
 import { useAppContext } from '@/context/AppProvider';
 
 export default function VoiceScreen() {
-  const colors = useThemeColors();
+  const { colors } = useTheme();
   const { voiceQuery, loading, error } = useApi();
   const { language } = useAppContext();
   const isTamil = language === 'Tamil';
@@ -53,7 +53,6 @@ export default function VoiceScreen() {
           handleVoiceQuery(uri);
         }
       } else {
-        // Recording was too short or never started properly
         await recording.stopAndUnloadAsync().catch(() => {}); 
       }
     } catch (err) {
@@ -75,103 +74,100 @@ export default function VoiceScreen() {
   };
 
   return (
-    <ThemedView style={[styles.container, { backgroundColor: colors.background }]}>
-      <ThemedView style={styles.header}>
-        <ThemedText type="title" style={styles.headerTitle}>AI Assistant</ThemedText>
-        <ThemedText style={[styles.headerSubtitle, { color: colors.icon }]}>
+    <KeyboardResponsiveView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.scrollContent}>
+      <View style={styles.header}>
+        <Typography.H1 style={styles.headerTitle}>AI Assistant</Typography.H1>
+        <Typography.P style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
           Ask about weather, pests, or market prices in Tamil.
-        </ThemedText>
-      </ThemedView>
+        </Typography.P>
+      </View>
 
-      <ScrollView 
-        style={styles.chatContainer} 
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.chatContainer}>
         {history.length === 0 && !loading && (
           <View style={styles.emptyState}>
             <View style={[styles.iconCircle, { backgroundColor: colors.tint + '10' }]}>
               <Mic size={48} color={colors.tint} />
             </View>
-            <ThemedText style={[styles.emptyText, { color: colors.icon }]}>
+            <Typography.P style={{ color: colors.mutedForeground, textAlign: 'center', fontWeight: '500' }}>
               Press and hold the microphone to speak
-            </ThemedText>
+            </Typography.P>
           </View>
         )}
 
         {history.map((item, index) => (
           <View key={index} style={styles.msgPair}>
             <View style={[styles.userBubble, { backgroundColor: colors.tint }]}>
-              <ThemedText style={styles.userText}>{item.q}</ThemedText>
+              <Typography.P style={{ color: '#fff' }}>{item.q}</Typography.P>
             </View>
-            <View style={[styles.aiBubble, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <ThemedText style={[styles.aiText, { color: colors.text }]}>{item.a}</ThemedText>
-              <ThemedText style={[styles.time, { color: colors.icon }]}>{item.time}</ThemedText>
-            </View>
+            <Card style={styles.aiBubble}>
+              <CardContent style={{ padding: 16 }}>
+                <Typography.P style={{ fontWeight: '500' }}>{item.a}</Typography.P>
+                <Typography.Small style={{ color: colors.mutedForeground, alignSelf: 'flex-end', marginTop: 8 }}>
+                  {item.time}
+                </Typography.Small>
+              </CardContent>
+            </Card>
           </View>
         ))}
 
         {loading && (
           <View style={styles.loadingBubble}>
             <ActivityIndicator size="small" color={colors.tint} />
-            <ThemedText style={[styles.loadingText, { color: colors.icon }]}>Thinking...</ThemedText>
+            <Typography.Small style={{ color: colors.mutedForeground }}>Thinking...</Typography.Small>
           </View>
         )}
-      </ScrollView>
+      </View>
 
       {/* Recording Controls */}
-      <View style={[styles.footer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+      <View style={[styles.footer, { backgroundColor: colors.background }]}>
         <View style={styles.micWrapper}>
-          <TouchableOpacity
-            onLongPress={startRecording}
-            onPressOut={stopRecording}
+          <Button
+            variant="default"
+            size="icon"
             style={[
               styles.micBtn,
-              { backgroundColor: isRecording ? colors.notification : colors.tint }
+              { backgroundColor: isRecording ? colors.destructive : colors.tint }
             ]}
+            onLongPress={startRecording}
+            onPressOut={stopRecording}
           >
             <Mic size={32} color="#fff" />
-          </TouchableOpacity>
-          {isRecording && <View style={[styles.pulseCircle, { borderColor: colors.notification }]} />}
+          </Button>
+          {isRecording && <View style={[styles.pulseCircle, { borderColor: colors.destructive }]} />}
         </View>
-        <ThemedText style={[styles.hint, { color: colors.icon }]}>
+        <Typography.Small style={[styles.hint, { color: colors.mutedForeground }]}>
           {isRecording ? 'Listening... Release to send' : 'Hold to speak (Tamil supported)'}
-        </ThemedText>
+        </Typography.Small>
       </View>
 
       {error && (
-        <View style={[styles.errorPopup, { backgroundColor: colors.notification }]}>
-          <AlertCircle size={20} color="#fff" />
-          <ThemedText style={styles.errorText}>{error}</ThemedText>
-        </View>
+        <Card style={[styles.errorPopup, { backgroundColor: colors.destructive }]}>
+          <CardContent style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 }}>
+            <AlertCircle size={20} color="#fff" />
+            <Typography.Small style={{ color: '#fff', fontWeight: '600' }}>{error}</Typography.Small>
+          </CardContent>
+        </Card>
       )}
-    </ThemedView>
+    </KeyboardResponsiveView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { padding: 30, paddingTop: 70, backgroundColor: 'transparent' },
-  headerTitle: { fontSize: 34, fontWeight: '800', letterSpacing: -1 },
-  headerSubtitle: { fontSize: 16, marginTop: 4, fontWeight: '500' },
-  chatContainer: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 150 },
+  scrollContent: { paddingBottom: 150 },
+  header: { padding: 30, paddingTop: 60 },
+  headerTitle: { letterSpacing: -1 },
+  headerSubtitle: { marginTop: 4, fontWeight: '500' },
+  chatContainer: { flex: 1, paddingHorizontal: 20 },
   emptyState: { alignItems: 'center', justifyContent: 'center', marginTop: 100 },
-  iconCircle: { padding: 24, borderRadius: 40, marginBottom: 16 },
-  emptyText: { fontSize: 16, fontWeight: '500', textAlign: 'center' },
+  iconCircle: { width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   msgPair: { marginVertical: 12 },
   userBubble: { alignSelf: 'flex-end', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 24, borderBottomRightRadius: 4, maxWidth: '85%', elevation: 2 },
-  userText: { color: '#fff', fontSize: 16, fontWeight: '500' },
-  aiBubble: { alignSelf: 'flex-start', padding: 16, borderRadius: 24, borderBottomLeftRadius: 4, borderWidth: 1, maxWidth: '85%', marginTop: 8, elevation: 1 },
-  aiText: { fontSize: 16, lineHeight: 22, fontWeight: '500' },
-  time: { fontSize: 11, marginTop: 6, alignSelf: 'flex-end', fontWeight: '600' },
+  aiBubble: { alignSelf: 'flex-start', borderRadius: 24, borderBottomLeftRadius: 4, maxWidth: '85%', marginTop: 8 },
   loadingBubble: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', padding: 12, borderRadius: 20, gap: 8, marginTop: 10 },
-  loadingText: { fontSize: 14, fontWeight: '500' },
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingVertical: 32, alignItems: 'center', borderTopWidth: 1 },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingVertical: 32, alignItems: 'center', borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)' },
   micWrapper: { alignItems: 'center', justifyContent: 'center' },
-  micBtn: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, zIndex: 10 },
+  micBtn: { width: 72, height: 72, borderRadius: 36, elevation: 8 },
   pulseCircle: { position: 'absolute', width: 90, height: 90, borderRadius: 45, borderWidth: 2, opacity: 0.5 },
-  hint: { marginTop: 16, fontSize: 14, fontWeight: '600' },
-  errorPopup: { position: 'absolute', top: 50, left: 20, right: 20, flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 16, gap: 10, elevation: 5 },
-  errorText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  hint: { marginTop: 16, fontWeight: '600' },
+  errorPopup: { position: 'absolute', top: 50, left: 20, right: 20, elevation: 5 },
 });

@@ -4,12 +4,13 @@ import 'react-native-reanimated';
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import * as Notifications from 'expo-notifications';
+// import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 
 import { AppProvider, useAppContext } from '../context/AppProvider';
 import { useApi } from '../hooks/use-api';
 
+/* 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -19,6 +20,8 @@ Notifications.setNotificationHandler({
     shouldShowList: true,
   }),
 });
+*/
+
 
 function RootLayoutNav() {
   const { theme, isLoaded } = useAppContext();
@@ -36,16 +39,6 @@ function RootLayoutNav() {
         const inAuthGroup = segments[0] === 'auth';
 
         if (sessionStr) {
-          const session = JSON.parse(sessionStr);
-          // Try to restore profile from MongoDB
-          if (session.id) {
-            const remote = await getProfileRemote(session.id);
-            if (remote) {
-              await AsyncStorage.setItem('user_profile', JSON.stringify(remote));
-              await AsyncStorage.setItem('onboarded', 'true');
-            }
-          }
-
           if (inAuthGroup) {
             router.replace('/(tabs)');
           }
@@ -62,6 +55,29 @@ function RootLayoutNav() {
     checkSession();
   }, [segments, isLoaded]);
 
+  // Separate effect for profile fetching to avoid redundant calls on navigation
+  useEffect(() => {
+    if (!isLoaded) return;
+    
+    const fetchProfile = async () => {
+      const sessionStr = await AsyncStorage.getItem('user_session');
+      const profileStr = await AsyncStorage.getItem('user_profile');
+      
+      if (sessionStr && !profileStr) {
+        const session = JSON.parse(sessionStr);
+        if (session.id) {
+          const remote = await getProfileRemote(session.id);
+          if (remote) {
+            await AsyncStorage.setItem('user_profile', JSON.stringify(remote));
+            await AsyncStorage.setItem('onboarded', 'true');
+          }
+        }
+      }
+    };
+    fetchProfile();
+  }, [isLoaded]);
+
+
   if (!isLoaded || !isReady) return null;
 
   return (
@@ -76,10 +92,14 @@ function RootLayoutNav() {
   );
 }
 
+import { ToastProvider } from '@/components/ui/Toast';
+
 export default function RootLayout() {
   return (
     <AppProvider>
-      <RootLayoutNav />
+      <ToastProvider>
+        <RootLayoutNav />
+      </ToastProvider>
     </AppProvider>
   );
 }

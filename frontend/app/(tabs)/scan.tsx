@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, TouchableOpacity, Image, ScrollView, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Image, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, Image as ImageIcon, Scan as ScanIcon, CheckCircle2, AlertCircle, Info } from 'lucide-react-native';
+import { Camera, Image as ImageIcon, CheckCircle2, AlertCircle, Info } from 'lucide-react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { Typography } from '@/components/ui/Typography';
+import { Card, CardHeader, CardContent } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { KeyboardResponsiveView } from '@/components/ui/KeyboardResponsiveView';
+import { Separator } from '@/components/ui/Separator';
 import { useApi } from '@/hooks/use-api';
-import { useThemeColors } from '@/hooks/use-theme-colors';
+import { useTheme } from '@/hooks/use-theme';
 
 export default function ScanScreen() {
-  const colors = useThemeColors();
+  const { colors } = useTheme();
   const { predictDisease, loading, error } = useApi();
   const [image, setImage] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
@@ -56,139 +60,147 @@ export default function ScanScreen() {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <ThemedView style={styles.header}>
-        <ThemedText type="title" style={styles.headerTitle}>Crop Scan</ThemedText>
-        <ThemedText style={[styles.headerSubtitle, { color: colors.icon }]}>
+    <KeyboardResponsiveView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.scrollContent}>
+      <View style={styles.header}>
+        <Typography.H1 style={styles.headerTitle}>Crop Scan</Typography.H1>
+        <Typography.P style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
           Analyze plant health using AI-powered detection.
-        </ThemedText>
-      </ThemedView>
+        </Typography.P>
+      </View>
 
       <View style={styles.actionContainer}>
         {image ? (
-          <View style={[styles.previewWrapper, { borderColor: colors.border }]}>
+          <Card style={styles.previewCard}>
             <Image source={{ uri: image }} style={styles.preview} />
-            <TouchableOpacity 
-              style={[styles.retakeBtn, { backgroundColor: colors.card }]} 
+            <Button 
+              variant="secondary" 
+              size="icon" 
+              style={styles.retakeBtn} 
               onPress={() => setImage(null)}
             >
               <ImageIcon size={20} color={colors.tint} />
-            </TouchableOpacity>
-          </View>
+            </Button>
+          </Card>
         ) : (
-          <TouchableOpacity 
-            style={[styles.placeholder, { backgroundColor: colors.card, borderColor: colors.border }]}
+          <Button 
+            variant="ghost" 
+            style={styles.placeholder}
             onPress={takePhoto}
           >
             <View style={[styles.iconCircle, { backgroundColor: colors.tint + '10' }]}>
               <Camera size={48} color={colors.tint} />
             </View>
-            <ThemedText style={[styles.placeholderText, { color: colors.icon }]}>
+            <Typography.P style={{ color: colors.mutedForeground, fontWeight: '500' }}>
               Tap to capture or upload a photo
-            </ThemedText>
-          </TouchableOpacity>
+            </Typography.P>
+          </Button>
         )}
 
         <View style={styles.buttonRow}>
-          <TouchableOpacity 
-            style={[styles.btn, { backgroundColor: colors.tint }]} 
+          <Button 
+            style={styles.actionBtn} 
             onPress={takePhoto}
           >
             <Camera size={20} color="#fff" />
-            <ThemedText style={styles.btnText}>Camera</ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.btn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]} 
+            <Typography.Large style={{ color: '#fff', fontWeight: '700' }}>Camera</Typography.Large>
+          </Button>
+          <Button 
+            variant="outline" 
+            style={styles.actionBtn} 
             onPress={pickImage}
           >
-            <ImageIcon size={20} color={colors.text} />
-            <ThemedText style={[styles.btnText, { color: colors.text }]}>Gallery</ThemedText>
-          </TouchableOpacity>
+            <ImageIcon size={20} color={colors.foreground} />
+            <Typography.Large style={{ fontWeight: '700' }}>Gallery</Typography.Large>
+          </Button>
         </View>
       </View>
 
       {loading && (
         <View style={styles.loadingBox}>
           <ActivityIndicator size="large" color={colors.tint} />
-          <ThemedText style={{ marginTop: 12, color: colors.icon }}>Analyzing crop health...</ThemedText>
+          <Typography.P style={{ marginTop: 12, color: colors.mutedForeground }}>
+            Analyzing crop health...
+          </Typography.P>
         </View>
       )}
 
       {result && (
-        <View style={[styles.resultCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.resultHeader}>
+        <Card style={styles.resultCard}>
+          <CardHeader style={styles.resultHeader}>
             <CheckCircle2 size={24} color={colors.success} />
-            <ThemedText type="subtitle" style={[styles.resultTitle, { color: colors.success }]}>
+            <Typography.H3 style={{ color: colors.success, marginLeft: 12 }}>
               Analysis Complete
-            </ThemedText>
-          </View>
+            </Typography.H3>
+          </CardHeader>
           
-          <ThemedText type="defaultSemiBold" style={[styles.diseaseName, { color: colors.text }]}>
-            {result.disease}
-          </ThemedText>
-          <ThemedText style={[styles.confidence, { color: colors.icon }]}>
-            Confidence Score: {(result.confidence * 100).toFixed(1)}%
-          </ThemedText>
-          
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          
-          <View style={styles.solutionSection}>
-            <View style={styles.langHeader}>
-              <Info size={16} color={colors.tint} />
-              <ThemedText type="defaultSemiBold" style={{ marginLeft: 8 }}>Recommended Action</ThemedText>
-            </View>
-            <ThemedText style={[styles.solutionText, { color: colors.text }]}>
-              {result.solution}
-            </ThemedText>
+          <CardContent>
+            <Typography.H2 style={styles.diseaseName}>
+              {result.disease}
+            </Typography.H2>
+            <Badge variant="outline" style={{ marginTop: 8 }}>
+              <Typography.Small style={{ fontWeight: '700' }}>
+                Confidence: {(result.confidence * 100).toFixed(1)}%
+              </Typography.Small>
+            </Badge>
             
-            <View style={[styles.langHeader, { marginTop: 16 }]}>
-              <ThemedText type="defaultSemiBold">தீர்வு (Tamil)</ThemedText>
+            <Separator style={{ marginVertical: 24 }} />
+            
+            <View style={styles.solutionSection}>
+              <View style={styles.langHeader}>
+                <Info size={18} color={colors.tint} />
+                <Typography.H3 style={{ marginLeft: 8 }}>Recommended Action</Typography.H3>
+              </View>
+              <Typography.P style={styles.solutionText}>
+                {result.solution}
+              </Typography.P>
+              
+              <Separator style={{ marginVertical: 16 }} />
+              
+              <View style={styles.langHeader}>
+                <Typography.H3>தீர்வு (Tamil)</Typography.H3>
+              </View>
+              <Typography.P style={styles.solutionText}>
+                {result.tamil_solution}
+              </Typography.P>
             </View>
-            <ThemedText style={[styles.solutionText, { color: colors.text }]}>
-              {result.tamil_solution}
-            </ThemedText>
-          </View>
-        </View>
+          </CardContent>
+        </Card>
       )}
 
       {error && (
-        <View style={[styles.errorBox, { backgroundColor: colors.notification + '15', borderColor: colors.notification }]}>
-          <AlertCircle size={24} color={colors.notification} />
-          <ThemedText style={[styles.errorText, { color: colors.notification }]}>
-            {error}
-          </ThemedText>
-        </View>
+        <Card style={[styles.errorCard, { backgroundColor: colors.destructive + '10', borderColor: colors.destructive }]}>
+          <CardContent style={styles.errorContent}>
+            <AlertCircle size={24} color={colors.destructive} />
+            <Typography.P style={{ color: colors.destructive, fontWeight: '600', flex: 1 }}>
+              {error}
+            </Typography.P>
+          </CardContent>
+        </Card>
       )}
-      <View style={{ height: 40 }} />
-    </ScrollView>
+    </KeyboardResponsiveView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { padding: 30, paddingTop: 70, backgroundColor: 'transparent' },
-  headerTitle: { fontSize: 34, fontWeight: '800', letterSpacing: -1 },
-  headerSubtitle: { fontSize: 16, marginTop: 4, fontWeight: '500' },
+  scrollContent: { paddingBottom: 40 },
+  header: { padding: 30, paddingTop: 60 },
+  headerTitle: { letterSpacing: -1 },
+  headerSubtitle: { marginTop: 4, fontWeight: '500' },
   actionContainer: { padding: 20, alignItems: 'center' },
-  previewWrapper: { width: '100%', borderRadius: 28, borderWidth: 1, overflow: 'hidden', elevation: 4 },
+  previewCard: { width: '100%', borderRadius: 28, overflow: 'hidden', elevation: 4 },
   preview: { width: '100%', height: 300 },
-  retakeBtn: { position: 'absolute', bottom: 16, right: 16, padding: 12, borderRadius: 16, elevation: 4 },
-  placeholder: { width: '100%', height: 300, borderRadius: 28, borderStyle: 'dashed', borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  iconCircle: { padding: 24, borderRadius: 40, marginBottom: 16 },
-  placeholderText: { fontSize: 16, fontWeight: '500' },
+  retakeBtn: { position: 'absolute', bottom: 16, right: 16, borderRadius: 16 },
+  placeholder: { width: '100%', borderRadius: 28, borderStyle: 'dashed', borderWidth: 2, flexDirection: 'column', gap: 16, height: 'auto', paddingVertical: 40 },
+  iconCircle: { width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   buttonRow: { flexDirection: 'row', marginTop: 24, gap: 16 },
-  btn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 28, borderRadius: 20, gap: 10, elevation: 3 },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  actionBtn: { flex: 1, height: 56, borderRadius: 16, flexDirection: 'row', gap: 10 },
   loadingBox: { marginTop: 40, alignItems: 'center' },
-  resultCard: { margin: 20, padding: 24, borderRadius: 32, borderWidth: 1, elevation: 2 },
-  resultHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  resultTitle: { marginLeft: 12, fontSize: 18, fontWeight: '700' },
-  diseaseName: { fontSize: 24, fontWeight: '800' },
-  confidence: { fontSize: 15, marginTop: 4, fontWeight: '500' },
-  divider: { height: 1, marginVertical: 24, opacity: 0.5 },
-  solutionSection: { gap: 8 },
-  langHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  resultCard: { margin: 20, borderRadius: 32 },
+  resultHeader: { flexDirection: 'row', alignItems: 'center', paddingBottom: 16 },
+  diseaseName: { fontWeight: '800' },
+  solutionSection: { gap: 12 },
+  langHeader: { flexDirection: 'row', alignItems: 'center' },
   solutionText: { fontSize: 16, lineHeight: 24, fontWeight: '500' },
-  errorBox: { margin: 20, padding: 20, borderRadius: 24, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  errorText: { fontSize: 16, fontWeight: '600', flex: 1 },
+  errorCard: { margin: 20, borderRadius: 24, borderWidth: 1 },
+  errorContent: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16 },
 });

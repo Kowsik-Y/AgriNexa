@@ -1,22 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, TouchableOpacity, TextInput, ScrollView, Image, Dimensions, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, View, Image, Dimensions, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Mail, Phone, Chrome, ChevronRight, AlertCircle, ShieldCheck } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Typography } from '@/components/ui/Typography';
+import { KeyboardResponsiveView } from '@/components/ui/KeyboardResponsiveView';
+import { useToast } from '@/components/ui/Toast';
 import { useApi } from '../hooks/use-api';
-import { useThemeColors } from '../hooks/use-theme-colors';
+import { useTheme } from '@/hooks/use-theme';
 
 WebBrowser.maybeCompleteAuthSession();
 
 const { width } = Dimensions.get('window');
 
 export default function AuthScreen() {
-  const colors = useThemeColors();
+  const { colors } = useTheme();
+  const { toast } = useToast();
   const router = useRouter();
   const { getProfileRemote, loginWithGoogle, register, login: loginApi } = useApi();
   const [method, setMethod] = useState<'email' | 'phone' | null>(null);
@@ -27,7 +31,7 @@ export default function AuthScreen() {
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Google Auth Hook using Environment Variables
+  // Google Auth Hook
   const [request, response, promptAsync] = Google.useAuthRequest({
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || "YOUR_ANDROID_ID",
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || "YOUR_IOS_ID",
@@ -52,7 +56,7 @@ export default function AuthScreen() {
       await handleSocialLogin('google', info.id, info.email, info.name);
     } catch (e) {
       console.error('Google Fetch Error:', e);
-      Alert.alert('Login Error', 'Could not retrieve user info from Google.');
+      toast({ title: 'Login Error', description: 'Could not retrieve user info from Google.', type: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -61,20 +65,12 @@ export default function AuthScreen() {
   const handleSocialLogin = async (provider: string, googleId: string, email?: string, name?: string) => {
     setLoading(true);
     try {
-      // Exchange Google ID for AgriNexa JWT
       const authResponse = await loginWithGoogle({ user_id: googleId, email, name });
       
       if (authResponse && authResponse.access_token) {
-        const session = {
-          id: googleId,
-          method: provider,
-          token: authResponse.access_token,
-        };
+        const session = { id: googleId, method: provider, token: authResponse.access_token };
         await AsyncStorage.setItem('user_session', JSON.stringify(session));
 
-        console.log('Login successful for:', googleId);
-
-        // Sync profile from MongoDB
         const remoteProfile = await getProfileRemote(googleId);
         if (remoteProfile && remoteProfile.onboarded) {
           await AsyncStorage.setItem('user_profile', JSON.stringify(remoteProfile));
@@ -84,11 +80,11 @@ export default function AuthScreen() {
           router.replace('/onboarding');
         }
       } else {
-        Alert.alert('Authentication failed', 'Could not verify social login.');
+        toast({ title: 'Authentication failed', description: 'Could not verify social login.', type: 'destructive' });
       }
     } catch (e) {
       console.error(e);
-      Alert.alert('Login error', 'A connection error occurred.');
+      toast({ title: 'Login error', description: 'A connection error occurred.', type: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -96,17 +92,17 @@ export default function AuthScreen() {
 
   const handleAuthAction = async () => {
     if (!value || !password) {
-      Alert.alert('Missing Info', 'Please fill in all fields.');
+      toast({ title: 'Missing Info', description: 'Please fill in all fields.', type: 'warning' });
       return;
     }
 
     if (isSignUp) {
       if (password !== confirmPassword) {
-        Alert.alert('Mismatch', 'Passwords do not match.');
+        toast({ title: 'Mismatch', description: 'Passwords do not match.', type: 'warning' });
         return;
       }
       if (password.length < 6) {
-        Alert.alert('Weak Password', 'Password must be at least 6 characters.');
+        toast({ title: 'Weak Password', description: 'Password must be at least 6 characters.', type: 'warning' });
         return;
       }
     }
@@ -123,11 +119,7 @@ export default function AuthScreen() {
       const res = isSignUp ? await register(payload) : await loginApi(payload);
 
       if (res && res.access_token) {
-        const session = {
-          id: res.user_id,
-          method: method || 'custom',
-          token: res.access_token,
-        };
+        const session = { id: res.user_id, method: method || 'custom', token: res.access_token };
         await AsyncStorage.setItem('user_session', JSON.stringify(session));
         
         const remoteProfile = await getProfileRemote(res.user_id);
@@ -139,49 +131,44 @@ export default function AuthScreen() {
           router.replace('/onboarding');
         }
       } else {
-        Alert.alert(isSignUp ? 'Registration Failed' : 'Login Failed', 'Please check your credentials.');
+        toast({ title: isSignUp ? 'Registration Failed' : 'Login Failed', description: 'Please check your credentials.', type: 'destructive' });
       }
     } catch (error) {
       console.error('Auth action error:', error);
-      Alert.alert('Error', 'An unexpected error occurred during authentication.');
+      toast({ title: 'Error', description: 'An unexpected error occurred.', type: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
+    <KeyboardResponsiveView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <View style={[styles.logoBox, { backgroundColor: colors.tint + '15' }]}>
           <ShieldCheck size={48} color={colors.tint} />
         </View>
-        <ThemedText type="title" style={styles.title}>{isSignUp ? 'Create account' : 'Welcome back'}</ThemedText>
-        <ThemedText style={[styles.subtitle, { color: colors.icon }]}>
+        <Typography.H1 style={styles.title}>{isSignUp ? 'Create account' : 'Welcome back'}</Typography.H1>
+        <Typography.P style={[styles.subtitle, { color: colors.mutedForeground }]}>
           {isSignUp ? 'Join AgriNexa to start your journey.' : 'Sign in to access your smart farm assistant.'}
-        </ThemedText>
+        </Typography.P>
       </View>
 
       <View style={styles.optionsBox}>
         {!method && (
           <>
-            <TouchableOpacity 
-              style={[styles.socialBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            <Button
+              variant="outline"
               onPress={() => promptAsync()}
               disabled={loading || !request}
+              style={styles.socialBtn}
             >
-              {loading ? (
-                <ActivityIndicator color={colors.tint} />
-              ) : (
-                <>
-                  <Chrome size={24} color="#4285F4" />
-                  <ThemedText style={styles.socialText}>Continue with Google</ThemedText>
-                </>
-              )}
-            </TouchableOpacity>
+              <Chrome size={24} color="#4285F4" />
+              <Typography.Large style={styles.socialText}>Continue with Google</Typography.Large>
+            </Button>
 
             <View style={styles.dividerBox}>
               <View style={[styles.line, { backgroundColor: colors.border }]} />
-              <ThemedText style={[styles.orText, { color: colors.icon }]}>or</ThemedText>
+              <Typography.Muted style={styles.orText}>or</Typography.Muted>
               <View style={[styles.line, { backgroundColor: colors.border }]} />
             </View>
           </>
@@ -189,140 +176,121 @@ export default function AuthScreen() {
 
         {!method ? (
           <View style={styles.buttonStack}>
-            <TouchableOpacity 
-              style={[styles.btn, { backgroundColor: colors.tint }]}
+            <Button
               onPress={() => setMethod('email')}
               disabled={loading}
+              style={styles.btn}
             >
-              <Mail size={20} color="#fff" />
-              <ThemedText style={styles.btnText}>Continue with Email</ThemedText>
-            </TouchableOpacity>
+              <Mail size={20} color={colors.primaryForeground} />
+              <Typography.Large style={{ color: colors.primaryForeground }}>Continue with Email</Typography.Large>
+            </Button>
 
-            <TouchableOpacity 
-              style={[styles.btn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
+            <Button
+              variant="outline"
               onPress={() => setMethod('phone')}
               disabled={loading}
+              style={styles.btn}
             >
-              <Phone size={20} color={colors.text} />
-              <ThemedText style={[styles.btnText, { color: colors.text }]}>Continue with Phone</ThemedText>
-            </TouchableOpacity>
+              <Phone size={20} color={colors.foreground} />
+              <Typography.Large>Continue with Phone</Typography.Large>
+            </Button>
           </View>
         ) : (
           <View style={styles.inputStack}>
             {isSignUp && (
-              <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <ThemedText style={{ marginRight: 8 }}>Name</ThemedText>
-                <TextInput
-                  style={[styles.input, { color: colors.text }]}
-                  placeholder="Enter your name"
-                  placeholderTextColor={colors.icon}
-                  value={displayName}
-                  onChangeText={setDisplayName}
-                  editable={!loading}
-                />
-              </View>
+              <Input
+                placeholder="Enter your name"
+                value={displayName}
+                onChangeText={setDisplayName}
+                editable={!loading}
+                leftIcon={<Typography.Small>Name</Typography.Small>}
+              />
             )}
 
-            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              {method === 'email' ? <Mail size={20} color={colors.icon} /> : <Phone size={20} color={colors.icon} />}
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                placeholder={method === 'email' ? 'Enter email address' : 'Enter phone number'}
-                placeholderTextColor={colors.icon}
-                value={value}
-                onChangeText={setValue}
-                keyboardType={method === 'email' ? 'email-address' : 'phone-pad'}
-                editable={!loading}
-              />
-            </View>
+            <Input
+              placeholder={method === 'email' ? 'Enter email address' : 'Enter phone number'}
+              value={value}
+              onChangeText={setValue}
+              keyboardType={method === 'email' ? 'email-address' : 'phone-pad'}
+              editable={!loading}
+              leftIcon={method === 'email' ? <Mail size={20} color={colors.mutedForeground} /> : <Phone size={20} color={colors.mutedForeground} />}
+            />
 
-            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <ThemedText style={{ marginRight: 8 }}>Pass</ThemedText>
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                placeholder="Enter password"
-                secureTextEntry
-                placeholderTextColor={colors.icon}
-                value={password}
-                onChangeText={setPassword}
-                editable={!loading}
-              />
-            </View>
+            <Input
+              placeholder="Enter password"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+              editable={!loading}
+              leftIcon={<Typography.Small>Pass</Typography.Small>}
+            />
 
             {isSignUp && (
-              <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <ThemedText style={{ marginRight: 8 }}>Confirm</ThemedText>
-                <TextInput
-                  style={[styles.input, { color: colors.text }]}
-                  placeholder="Confirm password"
-                  secureTextEntry
-                  placeholderTextColor={colors.icon}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  editable={!loading}
-                />
-              </View>
+              <Input
+                placeholder="Confirm password"
+                secureTextEntry
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                editable={!loading}
+                leftIcon={<Typography.Small>Confirm</Typography.Small>}
+              />
             )}
 
-            <TouchableOpacity 
-              style={[styles.btn, { backgroundColor: colors.tint }]}
+            <Button
               onPress={handleAuthAction}
               disabled={loading}
+              loading={loading}
+              style={styles.btn}
             >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <ThemedText style={styles.btnText}>{isSignUp ? 'Create Account' : 'Continue'}</ThemedText>
-                  <ChevronRight size={20} color="#fff" />
-                </>
-              )}
-            </TouchableOpacity>
+              <Typography.Large style={{ color: colors.primaryForeground }}>{isSignUp ? 'Create Account' : 'Continue'}</Typography.Large>
+              <ChevronRight size={20} color={colors.primaryForeground} />
+            </Button>
 
             <View style={{ gap: 12 }}>
-              <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)} disabled={loading}>
-                <ThemedText style={[styles.backText, { color: colors.tint }]}>
-                  {isSignUp ? 'Already have an account? Login' : "Don't have an account? Sign Up"}
-                </ThemedText>
-              </TouchableOpacity>
+              <Button
+                variant="link"
+                onPress={() => setIsSignUp(!isSignUp)}
+                disabled={loading}
+              >
+                {isSignUp ? 'Already have an account? Login' : "Don't have an account? Sign Up"}
+              </Button>
               
-              <TouchableOpacity onPress={() => { setMethod(null); setIsSignUp(false); }} disabled={loading}>
-                <ThemedText style={[styles.backText, { color: colors.icon, fontSize: 13 }]}>Change login method</ThemedText>
-              </TouchableOpacity>
+              <Button
+                variant="ghost"
+                onPress={() => { setMethod(null); setIsSignUp(false); }}
+                disabled={loading}
+              >
+                <Typography.Small style={{ color: colors.mutedForeground }}>Change login method</Typography.Small>
+              </Button>
             </View>
           </View>
         )}
       </View>
 
       <View style={styles.footer}>
-        <ThemedText style={[styles.footerText, { color: colors.icon }]}>
+        <Typography.Small style={[styles.footerText, { color: colors.mutedForeground }]}>
           By continuing, you agree to our Terms and Privacy Policy.
-        </ThemedText>
+        </Typography.Small>
       </View>
-    </ScrollView>
+    </KeyboardResponsiveView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { padding: 32, paddingTop: 100, minHeight: '100%', justifyContent: 'space-between' },
+  content: { padding: 32, paddingTop: 60, minHeight: '100%', justifyContent: 'space-between' },
   header: { alignItems: 'center' },
   logoBox: { width: 96, height: 96, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
-  title: { fontSize: 32, fontWeight: '800', textAlign: 'center' },
-  subtitle: { fontSize: 16, textAlign: 'center', marginTop: 8, fontWeight: '500' },
-  optionsBox: { marginVertical: 48, gap: 16 },
-  socialBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 20, borderWidth: 1, gap: 12, elevation: 1 },
-  socialText: { fontSize: 16, fontWeight: '700' },
+  title: { textAlign: 'center' },
+  subtitle: { textAlign: 'center', marginTop: 8 },
+  optionsBox: { marginVertical: 40, gap: 16 },
+  socialBtn: { paddingVertical: 12, borderRadius: 16, height: 56 },
+  socialText: { fontWeight: '700' },
   dividerBox: { flexDirection: 'row', alignItems: 'center', marginVertical: 8, gap: 12 },
   line: { flex: 1, height: 1 },
-  orText: { fontSize: 14, fontWeight: '600' },
+  orText: { fontWeight: '600' },
   buttonStack: { gap: 16 },
-  btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 20, gap: 12, elevation: 2 },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  btn: { borderRadius: 16, height: 56, gap: 12 },
   inputStack: { gap: 16 },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16, borderWidth: 1, gap: 12 },
-  input: { flex: 1, fontSize: 16, height: 40 },
-  backText: { textAlign: 'center', fontWeight: '700', marginTop: 8 },
   footer: { alignItems: 'center', paddingBottom: 20 },
-  footerText: { fontSize: 12, textAlign: 'center', lineHeight: 18, paddingHorizontal: 20 },
+  footerText: { textAlign: 'center', lineHeight: 18, paddingHorizontal: 20 },
 });

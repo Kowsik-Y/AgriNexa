@@ -4,3 +4,9 @@ requests
 python-dotenv
 numpy
 pymongo
+PyJWT
+bcrypt
+email-validator
+python-multipart
+motor
+certifi
