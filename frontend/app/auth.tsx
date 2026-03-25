@@ -5,6 +5,7 @@ import { Mail, Phone, Chrome, ChevronRight, AlertCircle, ShieldCheck } from 'luc
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import { makeRedirectUri } from 'expo-auth-session';
 
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -33,9 +34,13 @@ export default function AuthScreen() {
 
   // Google Auth Hook
   const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || "YOUR_ANDROID_ID",
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || "YOUR_IOS_ID",
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "YOUR_WEB_ID",
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.includes('YOUR_WEB') ? undefined : process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.includes('YOUR_IOS') ? undefined : process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    redirectUri: makeRedirectUri({
+      scheme: 'agrinexa',
+      preferLocalhost: true
+    }),
   });
 
   useEffect(() => {

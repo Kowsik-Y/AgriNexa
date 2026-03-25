@@ -3,7 +3,8 @@ import { useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Use environment variable for the API URL
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.87.60.107:8000'; 
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.87.60.107:8000';
+// For Android emulator debugging, 10.0.2.2 usually maps to the host machine's localhost
 
 const api = axios.create({
   baseURL: BASE_URL,
