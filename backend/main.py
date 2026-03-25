@@ -1,4 +1,4 @@
-
+    
 from fastapi import FastAPI, UploadFile, File, Query, Body, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
@@ -11,6 +11,10 @@ import datetime
 import random
 from ai.disease_model import disease_model
 from ai.voice_ai import voice_ai
+from ai.agri_flow.pipeline import run_pipeline
+from ai.agri_flow.pest_detection import detect_pest_from_image
+from ai.agri_flow.crop_monitoring import analyze_weekly_image
+from pydantic import Field
 from database import client, db
 
 import bcrypt
@@ -90,6 +94,47 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ──────────────────────────────────────────────────────
+# AgriFlow - Smart Farming Endpoints
+# ──────────────────────────────────────────────────────
+
+class SoilInput(BaseModel):
+    """Input parameters for the farming pipeline."""
+    nitrogen: float = Field(..., ge=0, le=300, description="Nitrogen level (kg/ha)")
+    phosphorus: float = Field(..., ge=0, le=200, description="Phosphorus level (kg/ha)")
+    potassium: float = Field(..., ge=0, le=300, description="Potassium level (kg/ha)")
+    ph: float = Field(..., ge=0, le=14, description="Soil pH value")
+    temperature: float = Field(..., ge=-10, le=55, description="Temperature in °C")
+    humidity: float = Field(..., ge=0, le=100, description="Humidity in %")
+
+@app.post("/agri-flow/predict")
+async def get_farming_plan(soil_input: SoilInput):
+    """Main endpoint: Takes 6 soil/weather inputs → returns complete farming plan (all 8 stages)."""
+    result = run_pipeline(
+        nitrogen=soil_input.nitrogen,
+        phosphorus=soil_input.phosphorus,
+        potassium=soil_input.potassium,
+        ph=soil_input.ph,
+        temperature=soil_input.temperature,
+        humidity=soil_input.humidity,
+    )
+    return result
+
+@app.post("/agri-flow/pest-detection")
+async def pest_detection(file: UploadFile = File(...)):
+    """Upload a crop image for AI-based pest/disease detection."""
+    image_bytes = await file.read()
+    result = detect_pest_from_image(image_bytes)
+    return result
+
+@app.post("/agri-flow/crop-monitoring/weekly")
+async def weekly_crop_monitoring(crop: str = "Rice", week_number: int = 1, file: UploadFile = File(...)):
+    """Upload weekly crop image for health assessment."""
+    image_bytes = await file.read()
+    result = analyze_weekly_image(image_bytes, crop, week_number)
+    return result
+
 
 @app.post("/auth/register")
 async def register(user: UserRegister):
