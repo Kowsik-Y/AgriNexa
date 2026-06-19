@@ -7,12 +7,14 @@ import {
   TextStyle,
   TextInputProps,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { X } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 
 interface InputProps extends TextInputProps {
   containerStyle?: ViewStyle;
+  label?: string;
   labelStyle?: TextStyle;
   error?: boolean;
   leftIcon?: React.ReactNode;
@@ -23,6 +25,8 @@ interface InputProps extends TextInputProps {
 export const Input = ({
   containerStyle,
   style,
+  label,
+  labelStyle,
   error,
   leftIcon,
   rightIcon,
@@ -37,23 +41,37 @@ export const Input = ({
   const [isFocused, setIsFocused] = useState(false);
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          borderColor: error
-            ? colors.destructive
-            : isFocused
-            ? colors.primary
-            : colors.input,
-          backgroundColor: colors.background,
-        },
-        containerStyle,
-      ]}
-    >
+    <View style={containerStyle}>
+      {label && (
+        <View style={styles.labelContainer}>
+          <TextInput
+            editable={false}
+            style={[styles.label, { color: colors.mutedForeground }, labelStyle]}
+            value={label}
+          />
+        </View>
+      )}
+      <View
+        style={[
+          styles.inputContainer,
+          {
+            borderColor: error
+              ? colors.destructive
+              : isFocused
+              ? colors.primary
+              : colors.input,
+            backgroundColor: colors.background,
+          },
+        ]}
+      >
       {leftIcon && <View style={styles.leftIcon}>{leftIcon}</View>}
       <TextInput
-        style={[styles.input, { color: colors.foreground }, style]}
+        style={[
+          styles.input, 
+          { color: colors.foreground }, 
+          Platform.OS === 'web' && { outlineStyle: 'none' } as any,
+          style
+        ]}
         placeholderTextColor={colors.mutedForeground}
         onFocus={(e) => {
           setIsFocused(true);
@@ -76,6 +94,7 @@ export const Input = ({
       )}
       {rightIcon && <View style={styles.rightIcon}>{rightIcon}</View>}
     </View>
+  </View>
   );
 };
 
@@ -93,6 +112,17 @@ export const Textarea = ({ style, ...props }: InputProps) => {
 
 const styles = StyleSheet.create({
   container: {
+    width: '100%',
+  },
+  labelContainer: {
+    marginBottom: 6,
+    marginLeft: 4,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  inputContainer: {
     height: 44,
     width: '100%',
     borderRadius: 8,

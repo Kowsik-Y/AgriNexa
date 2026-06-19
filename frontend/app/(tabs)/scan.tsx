@@ -1,206 +1,163 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Image, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Image, useWindowDimensions } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Image as ImageIcon, CheckCircle2, AlertCircle, Info } from 'lucide-react-native';
 
 import { Typography } from '@/components/ui/Typography';
-import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { KeyboardResponsiveView } from '@/components/ui/KeyboardResponsiveView';
-import { Separator } from '@/components/ui/Separator';
+import { Spinner } from '@/components/ui/Spinner';
+import { ResponsiveContainer } from '@/components/ui/ResponsiveContainer';
 import { useApi } from '@/hooks/use-api';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function ScanScreen() {
   const { colors } = useTheme();
-  const { predictDisease, loading, error } = useApi();
+  const { width } = useWindowDimensions();
+  const { predictDisease, predictCrop, loading, error } = useApi();
   const [image, setImage] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
 
   const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
+    let res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 1,
     });
-
-    if (!result.canceled) {
-      const uri = result.assets[0].uri;
-      setImage(uri);
-      handlePredict(uri);
-    }
+    if (!res.canceled) { const uri = res.assets[0].uri; setImage(uri); handlePredict(uri); }
   };
 
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      alert('Camera permission is required!');
-      return;
-    }
-
-    let result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      const uri = result.assets[0].uri;
-      setImage(uri);
-      handlePredict(uri);
-    }
+    if (status !== 'granted') { alert('Camera permission required'); return; }
+    let res = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [4, 3], quality: 1 });
+    if (!res.canceled) { const uri = res.assets[0].uri; setImage(uri); handlePredict(uri); }
   };
 
   const handlePredict = async (uri: string) => {
     setResult(null);
-    const res = await predictDisease(uri);
-    setResult(res);
+    const [diseaseResult, cropResult] = await Promise.all([predictDisease(uri), predictCrop(uri)]);
+    if (!diseaseResult && !cropResult) return;
+    setResult({ ...(diseaseResult || {}), crop_prediction: cropResult || null });
   };
 
   return (
-    <KeyboardResponsiveView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.header}>
-        <Typography.H1 style={styles.headerTitle}>Crop Scan</Typography.H1>
-        <Typography.P style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
-          Analyze plant health using AI-powered detection.
-        </Typography.P>
-      </View>
+    <KeyboardResponsiveView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.scroll}>
+      <ResponsiveContainer>
+        <View style={styles.header}>
+          <Typography.H2 style={[styles.title, { color: colors.foreground, borderBottomWidth: 0 }]}>Crop Scan</Typography.H2>
+          <Typography.P style={{ color: colors.mutedForeground, marginTop: 2 }}>Analyze plant health with AI.</Typography.P>
+        </View>
 
-      <View style={styles.actionContainer}>
-        {image ? (
-          <Card style={styles.previewCard}>
-            <Image source={{ uri: image }} style={styles.preview} />
-            <Button 
-              variant="secondary" 
-              size="icon" 
-              style={styles.retakeBtn} 
-              onPress={() => setImage(null)}
-            >
-              <ImageIcon size={20} color={colors.tint} />
-            </Button>
-          </Card>
-        ) : (
-          <Button 
-            variant="ghost" 
-            style={styles.placeholder}
-            onPress={takePhoto}
-          >
-            <View style={[styles.iconCircle, { backgroundColor: colors.tint + '10' }]}>
-              <Camera size={48} color={colors.tint} />
+        <View style={styles.body}>
+          {image ? (
+            <View style={[styles.previewWrap, { borderColor: colors.border }]}>
+              <Image source={{ uri: image }} style={styles.preview} />
             </View>
-            <Typography.P style={{ color: colors.mutedForeground, fontWeight: '500' }}>
-              Tap to capture or upload a photo
-            </Typography.P>
-          </Button>
+          ) : (
+            <View style={[styles.placeholder, { borderColor: colors.border }]}>
+              <Camera size={36} color={colors.mutedForeground} />
+              <Typography.P style={{ color: colors.mutedForeground }}>Tap Camera or Gallery below</Typography.P>
+            </View>
+          )}
+
+          <View style={styles.btnRow}>
+            <Button style={styles.actionBtn} onPress={takePhoto}>
+              <Camera size={18} color="#fff" />
+              <Typography.P style={{ color: '#fff', fontWeight: '600' }}>Camera</Typography.P>
+            </Button>
+            <Button variant="outline" style={styles.actionBtn} onPress={pickImage}>
+              <ImageIcon size={18} color={colors.foreground} />
+              <Typography.P style={{ fontWeight: '600' }}>Gallery</Typography.P>
+            </Button>
+          </View>
+        </View>
+
+        {loading && (
+          <View style={styles.loading}>
+            <Spinner size={28} color={colors.tint} />
+            <Typography.P style={{ marginTop: 10, color: colors.mutedForeground }}>Analyzing...</Typography.P>
+          </View>
         )}
 
-        <View style={styles.buttonRow}>
-          <Button 
-            style={styles.actionBtn} 
-            onPress={takePhoto}
-          >
-            <Camera size={20} color="#fff" />
-            <Typography.Large style={{ color: '#fff', fontWeight: '700' }}>Camera</Typography.Large>
-          </Button>
-          <Button 
-            variant="outline" 
-            style={styles.actionBtn} 
-            onPress={pickImage}
-          >
-            <ImageIcon size={20} color={colors.foreground} />
-            <Typography.Large style={{ fontWeight: '700' }}>Gallery</Typography.Large>
-          </Button>
-        </View>
-      </View>
-
-      {loading && (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color={colors.tint} />
-          <Typography.P style={{ marginTop: 12, color: colors.mutedForeground }}>
-            Analyzing crop health...
-          </Typography.P>
-        </View>
-      )}
-
-      {result && (
-        <Card style={styles.resultCard}>
-          <CardHeader style={styles.resultHeader}>
-            <CheckCircle2 size={24} color={colors.success} />
-            <Typography.H3 style={{ color: colors.success, marginLeft: 12 }}>
-              Analysis Complete
-            </Typography.H3>
-          </CardHeader>
-          
-          <CardContent>
-            <Typography.H2 style={styles.diseaseName}>
-              {result.disease}
-            </Typography.H2>
-            <Badge variant="outline" style={{ marginTop: 8 }}>
-              <Typography.Small style={{ fontWeight: '700' }}>
-                Confidence: {(result.confidence * 100).toFixed(1)}%
-              </Typography.Small>
-            </Badge>
-            
-            <Separator style={{ marginVertical: 24 }} />
-            
-            <View style={styles.solutionSection}>
-              <View style={styles.langHeader}>
-                <Info size={18} color={colors.tint} />
-                <Typography.H3 style={{ marginLeft: 8 }}>Recommended Action</Typography.H3>
-              </View>
-              <Typography.P style={styles.solutionText}>
-                {result.solution}
-              </Typography.P>
-              
-              <Separator style={{ marginVertical: 16 }} />
-              
-              <View style={styles.langHeader}>
-                <Typography.H3>தீர்வு (Tamil)</Typography.H3>
-              </View>
-              <Typography.P style={styles.solutionText}>
-                {result.tamil_solution}
-              </Typography.P>
+        {result && (
+          <View style={[styles.resultCard, { borderColor: colors.border }]}>
+            <View style={styles.resultHeader}>
+              <CheckCircle2 size={18} color={colors.success} />
+              <Typography.P style={{ color: colors.success, fontWeight: '700' }}>Analysis Complete</Typography.P>
             </View>
-          </CardContent>
-        </Card>
-      )}
 
-      {error && (
-        <Card style={[styles.errorCard, { backgroundColor: colors.destructive + '10', borderColor: colors.destructive }]}>
-          <CardContent style={styles.errorContent}>
-            <AlertCircle size={24} color={colors.destructive} />
-            <Typography.P style={{ color: colors.destructive, fontWeight: '600', flex: 1 }}>
-              {error}
-            </Typography.P>
-          </CardContent>
-        </Card>
-      )}
+            <Typography.P style={{ fontWeight: '700' }}>Disease: {result.disease || 'Unknown'}</Typography.P>
+            <Typography.P style={{ fontWeight: '700' }}>Crop: {result.crop_prediction?.predicted_crop || 'Unknown'}</Typography.P>
+
+            <View style={{ flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+              <Badge variant={result.confidence < 0.5 ? 'destructive' : 'outline'}>
+                Confidence: {(result.confidence * 100).toFixed(1)}%
+              </Badge>
+              {result.is_healthy && <Badge>✓ Healthy</Badge>}
+            </View>
+
+            {result.confidence < 0.5 && (
+              <View style={[styles.noteBox, { backgroundColor: colors.warning + '12' }]}>
+                <AlertCircle size={14} color={colors.warning} />
+                <Typography.Small style={{ color: colors.warning, flex: 1, marginLeft: 6 }}>
+                  Low confidence — consult an expert.
+                </Typography.Small>
+              </View>
+            )}
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            <View style={{ gap: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Info size={16} color={colors.tint} />
+                <Typography.P style={{ fontWeight: '700' }}>Recommended Action</Typography.P>
+              </View>
+              <Typography.P style={{ lineHeight: 22 }}>{result.solution}</Typography.P>
+            </View>
+
+            {result.pesticide_recommendation && result.pesticide_recommendation !== 'None required' && (
+              <View style={[styles.pesticideBox, { backgroundColor: colors.muted }]}>
+                <Typography.Small style={{ color: colors.tint, fontWeight: '700' }}>💊 {result.pesticide_recommendation}</Typography.Small>
+                {result.dosage && <Typography.Small style={{ color: colors.mutedForeground }}>Dosage: {result.dosage}</Typography.Small>}
+              </View>
+            )}
+
+            {result.tamil_solution && (
+              <>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <Typography.P style={{ fontWeight: '700' }}>🌿 தீர்வு (Tamil)</Typography.P>
+                <Typography.P style={{ lineHeight: 24, color: colors.mutedForeground }}>{result.tamil_solution}</Typography.P>
+              </>
+            )}
+          </View>
+        )}
+
+        {error && (
+          <View style={[styles.errorBar, { borderColor: colors.destructive }]}>
+            <AlertCircle size={16} color={colors.destructive} />
+            <Typography.P style={{ color: colors.destructive, flex: 1 }}>{error}</Typography.P>
+          </View>
+        )}
+      </ResponsiveContainer>
     </KeyboardResponsiveView>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollContent: { paddingBottom: 40 },
-  header: { padding: 30, paddingTop: 60 },
-  headerTitle: { letterSpacing: -1 },
-  headerSubtitle: { marginTop: 4, fontWeight: '500' },
-  actionContainer: { padding: 20, alignItems: 'center' },
-  previewCard: { width: '100%', borderRadius: 28, overflow: 'hidden', elevation: 4 },
-  preview: { width: '100%', height: 300 },
-  retakeBtn: { position: 'absolute', bottom: 16, right: 16, borderRadius: 16 },
-  placeholder: { width: '100%', borderRadius: 28, borderStyle: 'dashed', borderWidth: 2, flexDirection: 'column', gap: 16, height: 'auto', paddingVertical: 40 },
-  iconCircle: { width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  buttonRow: { flexDirection: 'row', marginTop: 24, gap: 16 },
-  actionBtn: { flex: 1, height: 56, borderRadius: 16, flexDirection: 'row', gap: 10 },
-  loadingBox: { marginTop: 40, alignItems: 'center' },
-  resultCard: { margin: 20, borderRadius: 32 },
-  resultHeader: { flexDirection: 'row', alignItems: 'center', paddingBottom: 16 },
-  diseaseName: { fontWeight: '800' },
-  solutionSection: { gap: 12 },
-  langHeader: { flexDirection: 'row', alignItems: 'center' },
-  solutionText: { fontSize: 16, lineHeight: 24, fontWeight: '500' },
-  errorCard: { margin: 20, borderRadius: 24, borderWidth: 1 },
-  errorContent: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16 },
+  scroll: { paddingBottom: 40 },
+  header: { paddingHorizontal: 20, paddingTop: 56, paddingBottom: 8 },
+  title: { fontWeight: '800', fontSize: 24, letterSpacing: -0.5 },
+  body: { paddingHorizontal: 20, alignItems: 'center' },
+  previewWrap: { width: '100%', borderRadius: 12, overflow: 'hidden', borderWidth: 1 },
+  preview: { width: '100%', height: 260 },
+  placeholder: { width: '100%', borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', paddingVertical: 48, gap: 10 },
+  btnRow: { flexDirection: 'row', marginTop: 14, gap: 12, width: '100%' },
+  actionBtn: { flex: 1, height: 48, borderRadius: 12, flexDirection: 'row', gap: 8 },
+  loading: { marginTop: 32, alignItems: 'center' },
+  resultCard: { marginHorizontal: 20, marginTop: 20, borderRadius: 12, borderWidth: 1, padding: 16, gap: 10 },
+  resultHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  noteBox: { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 8, marginTop: 4 },
+  divider: { height: 1, marginVertical: 8 },
+  pesticideBox: { padding: 12, borderRadius: 8, gap: 2 },
+  errorBar: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 20, marginTop: 16, padding: 12, borderRadius: 10, borderWidth: 1 },
 });

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ActivityIndicator, RefreshControl } from 'react-native';
-import { Sprout, Lightbulb, CheckCircle2, ChevronRight, RefreshCcw } from 'lucide-react-native';
+import { StyleSheet, View, RefreshControl } from 'react-native';
+import { Sprout, CheckCircle2, RefreshCcw } from 'lucide-react-native';
 
 import { Typography } from '@/components/ui/Typography';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { KeyboardResponsiveView } from '@/components/ui/KeyboardResponsiveView';
+import { Spinner } from '@/components/ui/Spinner';
+import { ResponsiveContainer } from '@/components/ui/ResponsiveContainer';
 import { useApi } from '@/hooks/use-api';
 import { useTheme } from '@/hooks/use-theme';
 import { useAppContext } from '@/context/AppProvider';
@@ -13,12 +14,10 @@ import { useAppContext } from '@/context/AppProvider';
 export default function AdviceScreen() {
   const { colors } = useTheme();
   const { getAdvice, loading } = useApi();
-  const { language } = useAppContext();
+  const { appLanguage } = useAppContext();
   const [adviceList, setAdviceList] = useState<any[]>([]);
 
-  useEffect(() => {
-    fetchAdvice();
-  }, []);
+  useEffect(() => { fetchAdvice(); }, []);
 
   const fetchAdvice = async () => {
     const list = await getAdvice();
@@ -26,111 +25,80 @@ export default function AdviceScreen() {
   };
 
   return (
-    <KeyboardResponsiveView 
-      style={{ backgroundColor: colors.background }} 
-      contentContainerStyle={styles.scrollContent}
+    <KeyboardResponsiveView
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={styles.scroll}
       scrollViewProps={{
-        refreshControl: (
-          <RefreshControl refreshing={loading} onRefresh={fetchAdvice} tintColor={colors.tint} />
-        )
+        refreshControl: <RefreshControl refreshing={loading} onRefresh={fetchAdvice} tintColor={colors.tint} />,
       }}
     >
-      <View style={styles.header}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography.H1 style={styles.headerTitle}>Expert Advice</Typography.H1>
-          <Button variant="ghost" size="icon" onPress={fetchAdvice}>
-            <RefreshCcw size={24} color={colors.tint} />
-          </Button>
-        </View>
-        <Typography.P style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
-          Personalized AI recommendations based on your crop and local weather.
-        </Typography.P>
-      </View>
-
-      <View style={styles.content}>
-        {loading && adviceList.length === 0 ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.tint} />
-            <Typography.P style={{ marginTop: 12, color: colors.mutedForeground }}>
-              Generating farming insights...
-            </Typography.P>
+      <ResponsiveContainer>
+        <View style={styles.header}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography.H2 style={[styles.title, { color: colors.foreground, borderBottomWidth: 0 }]}>Expert Advice</Typography.H2>
+            <Button variant="ghost" size="icon" onPress={fetchAdvice}>
+              <RefreshCcw size={20} color={colors.mutedForeground} />
+            </Button>
           </View>
-        ) : (
-          adviceList.map((item) => (
-            <Card key={item.id} style={styles.adviceCard}>
-              <CardHeader style={styles.cardHeader}>
-                <View style={[styles.iconCircle, { backgroundColor: colors.tint + '15' }]}>
-                  <Sprout size={22} color={colors.tint} />
-                </View>
-                <Typography.H3 style={styles.cardTitle}>
-                  {item.title}
-                </Typography.H3>
-              </CardHeader>
-              <CardContent style={styles.cardBody}>
-                <Typography.P style={styles.adviceText}>
-                  {item.text}
-                </Typography.P>
-                <View style={[styles.langDivider, { backgroundColor: colors.border }]} />
-                <Typography.P style={[styles.tamilText, { color: colors.mutedForeground }]}>
-                  {item.tamil}
-                </Typography.P>
-              </CardContent>
-              <CardFooter>
-                <Button variant="outline" style={styles.actionBtn}>
-                  <CheckCircle2 size={18} color={colors.tint} />
-                  <Typography.Small style={{ color: colors.tint, fontWeight: '700' }}>
-                    Mark as Read
-                  </Typography.Small>
-                </Button>
-              </CardFooter>
-            </Card>
-          ))
-        )}
-        
-        {/* Tip of the Day */}
-        <Card style={[styles.tipCard, { backgroundColor: colors.tint, borderColor: colors.tint }]}>
-          <CardHeader style={styles.tipHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <Lightbulb size={24} color="#fff" />
-              <Typography.H3 style={{ color: '#fff' }}>Tip of the Day</Typography.H3>
+          <Typography.P style={{ color: colors.mutedForeground, marginTop: 2 }}>
+            Personalized AI recommendations for your crop.
+          </Typography.P>
+        </View>
+
+        <View style={styles.content}>
+          {loading && adviceList.length === 0 ? (
+            <View style={styles.loading}>
+              <Spinner size={28} color={colors.tint} />
+              <Typography.P style={{ marginTop: 10, color: colors.mutedForeground }}>Generating insights...</Typography.P>
             </View>
-          </CardHeader>
-          <CardContent>
-            <Typography.P style={{ color: '#fff', opacity: 0.9 }}>
+          ) : (
+            adviceList.map((item) => (
+              <View key={item.id} style={[styles.card, { borderColor: colors.border }]}>
+                <View style={styles.cardHeader}>
+                  <Sprout size={18} color={colors.tint} />
+                  <Typography.P style={{ fontWeight: '700', flex: 1 }}>{item.title}</Typography.P>
+                </View>
+                <Typography.P style={{ lineHeight: 22, color: colors.foreground }}>{item.text}</Typography.P>
+                {typeof item.confidence === 'number' && (
+                  <Typography.Small style={{ color: colors.tint, marginTop: 6 }}>
+                    Confidence: {Math.round(item.confidence * 100)}%
+                  </Typography.Small>
+                )}
+                {item.timing && (
+                  <Typography.Small style={{ color: colors.mutedForeground, marginTop: 2 }}>
+                    Timing: {item.timing}
+                  </Typography.Small>
+                )}
+                {item.tamil && (
+                  <>
+                    <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                    <Typography.P style={{ color: colors.mutedForeground, lineHeight: 22 }}>{item.tamil}</Typography.P>
+                  </>
+                )}
+              </View>
+            ))
+          )}
+
+          {/* Tip */}
+          <View style={[styles.card, { borderColor: colors.tint, backgroundColor: colors.tint + '08' }]}>
+            <Typography.P style={{ fontWeight: '700', color: colors.tint, marginBottom: 6 }}>💡 Tip of the Day</Typography.P>
+            <Typography.P style={{ color: colors.foreground, lineHeight: 22 }}>
               Crop rotation helps maintain soil health and reduces pest build-up. Consider planting legumes after rice.
             </Typography.P>
-          </CardContent>
-          <CardFooter>
-            <Button variant="ghost" style={styles.learnMoreBtn}>
-              <Typography.Small style={{ color: '#fff', fontWeight: '700', textDecorationLine: 'underline' }}>
-                Learn more about crop rotation
-              </Typography.Small>
-              <ChevronRight size={16} color="#fff" />
-            </Button>
-          </CardFooter>
-        </Card>
-      </View>
+          </View>
+        </View>
+      </ResponsiveContainer>
     </KeyboardResponsiveView>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollContent: { paddingBottom: 40 },
-  header: { padding: 30, paddingTop: 60 },
-  headerTitle: { letterSpacing: -1 },
-  headerSubtitle: { marginTop: 4, fontWeight: '500' },
-  content: { flex: 1, paddingHorizontal: 20 },
-  loadingContainer: { marginTop: 80, alignItems: 'center' },
-  adviceCard: { marginBottom: 20, borderRadius: 24 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', paddingBottom: 16 },
-  iconCircle: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  cardTitle: { marginLeft: 16 },
-  cardBody: { gap: 12 },
-  adviceText: { fontSize: 16, lineHeight: 24, fontWeight: '500' },
-  langDivider: { height: 1, marginVertical: 4, opacity: 0.4 },
-  tamilText: { fontSize: 15, lineHeight: 22 },
-  actionBtn: { flex: 1, flexDirection: 'row', gap: 10, borderRadius: 16, height: 48 },
-  tipCard: { marginVertical: 20, borderRadius: 24, elevation: 4 },
-  tipHeader: { paddingBottom: 12 },
-  learnMoreBtn: { padding: 0, height: 'auto', gap: 4 },
+  scroll: { paddingBottom: 40 },
+  header: { paddingHorizontal: 20, paddingTop: 56, paddingBottom: 8 },
+  title: { fontWeight: '800', fontSize: 24, letterSpacing: -0.5 },
+  content: { paddingHorizontal: 20, gap: 14 },
+  loading: { marginTop: 80, alignItems: 'center' },
+  card: { borderRadius: 12, borderWidth: 1, padding: 16 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  divider: { height: 1, marginVertical: 10 },
 });

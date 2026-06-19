@@ -6,6 +6,7 @@ import {
   Animated,
   Dimensions,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { X, Info, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
@@ -72,8 +73,8 @@ const ToastItem = ({ title, description, type, onRemove }: Toast & { onRemove: (
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-      Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 0 }),
+      Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.spring(translateY, { toValue: 0, useNativeDriver: Platform.OS !== 'web', bounciness: 0 }),
     ]).start();
   }, []);
 
@@ -121,11 +122,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: 'row',
     marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+      },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 4,
+      },
+    }),
   },
   iconContainer: {
     marginRight: 12,

@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ScrollView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { User, MapPin, Sprout, Shield, LogOut, ChevronRight, Settings, Bell, HelpCircle } from 'lucide-react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { User, MapPin, Sprout, LogOut, Settings, Bell, HelpCircle, Activity, Languages, Shield } from 'lucide-react-native';
 
 import { Typography } from '@/components/ui/Typography';
-import { Card, CardContent } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Separator } from '@/components/ui/Separator';
-import { KeyboardResponsiveView } from '@/components/ui/KeyboardResponsiveView';
+import { Spinner } from '@/components/ui/Spinner';
+import { Button } from '@/components/ui/Button';
+import { SettingsSection } from '@/components/ui/SettingsSection';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
+import { useAppContext } from '@/context/AppProvider';
+import { clearAuthData, getSession, getUserProfile } from '@/lib/auth-storage';
+import { Card, CardContent } from '@/components/ui/Card';
 
 export default function ProfileScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
+  const { appLanguage } = useAppContext();
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
   const [session, setSession] = useState<any>(null);
@@ -22,10 +27,10 @@ export default function ProfileScreen() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const profileStr = await AsyncStorage.getItem('user_profile');
-        const sessionStr = await AsyncStorage.getItem('user_session');
-        if (profileStr) setProfile(JSON.parse(profileStr));
-        if (sessionStr) setSession(JSON.parse(sessionStr));
+        const savedProfile = await getUserProfile();
+        const savedSession = await getSession();
+        if (savedProfile) setProfile(savedProfile);
+        if (savedSession) setSession(savedSession);
       } catch (e) {
         console.error('Error loading profile data:', e);
       } finally {
@@ -36,132 +41,115 @@ export default function ProfileScreen() {
   }, []);
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem('user_session');
-    router.replace('/auth');
+    await clearAuthData();
+    router.replace('/(auth)/auth');
   };
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.tint} />
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }}>
+        <Spinner size={32} color={colors.tint} />
       </View>
     );
   }
 
   return (
-    <KeyboardResponsiveView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.header}>
-        <Typography.H1 style={styles.headerTitle}>Profile</Typography.H1>
-        <Button variant="ghost" size="icon" onPress={() => router.push('/settings')}>
-          <Settings size={28} color={colors.foreground} />
-        </Button>
-      </View>
-
-      <View style={styles.content}>
-        {/* User Stats Card */}
-        <Card style={styles.userCard}>
-          <CardContent style={styles.userCardContent}>
-            <View style={[styles.avatarBox, { backgroundColor: colors.tint + '15' }]}>
-              <User size={48} color={colors.tint} />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        {/* ── Header ── */}
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
+          <View style={styles.headerRow}>
+            <View style={styles.avatar}>
+              <User size={32} color={colors.mutedForeground} />
             </View>
-            <View style={styles.userInfo}>
-              <Typography.H3>{session?.value || 'Farmer'}</Typography.H3>
-              <Typography.Muted>
-                {session?.method === 'email' ? session.value : 'Connected via ' + (session?.method || 'Google')}
-              </Typography.Muted>
-              <Badge style={{ alignSelf: 'flex-start', marginTop: 4 }}>Active Farmer</Badge>
+            <View style={{ flex: 1 }}>
+              <Typography.H3 style={{ fontWeight: '800', color: colors.foreground }}>
+                {profile?.name || t('farmer')}
+              </Typography.H3>
+              <Typography.Small style={{ color: colors.mutedForeground, marginTop: 2 }}>
+                {profile?.email || profile?.phone || (session?.method ? `via ${session.method}` : t('signedIn'))}
+              </Typography.Small>
             </View>
-          </CardContent>
-        </Card>
-
-        {/* Farm Summary */}
-        <View style={styles.sectionHeader}>
-          <Sprout size={20} color={colors.mutedForeground} />
-          <Typography.H3 style={styles.sectionTitle}>My Farm</Typography.H3>
+            <Pressable
+              onPress={() => router.push('/settings')}
+              style={[styles.settingsBtn, { borderColor: colors.border }]}
+            >
+              <Settings size={20} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
         </View>
 
-        <View style={styles.farmGrid}>
-          <FarmStatCard icon={MapPin} label="Location" val={profile?.district || 'Not set'} />
-          <FarmStatCard icon={Sprout} label="Main Crop" val={profile?.mainCrops || 'Not set'} />
-          <FarmStatCard icon={Shield} label="Language" val={profile?.appLang || 'English'} />
-          <FarmStatCard icon={Bell} label="Status" val="Live" />
+        <View style={styles.body}>
+          {/* Farm Info */}
+          <View style={styles.section}>
+            <Typography.Small style={[styles.sectionTitle, { color: colors.mutedForeground }]}>MY FARM</Typography.Small>
+            <Card>
+              <CardContent style={{ padding: 0 }}>
+                <InfoRow icon={MapPin} label={t('location')} val={profile?.district || t('notSet')} color="#10B981" />
+                <Separator />
+                <InfoRow icon={Sprout} label={t('mainCrop')} val={profile?.mainCrops || t('notSet')} color="#F59E0B" />
+                <Separator />
+                <InfoRow icon={Languages} label={t('appLanguage')} val={appLanguage} color="#3B82F6" />
+                <Separator />
+                <InfoRow icon={Activity} label={t('status')} val={t('live')} isBadge color="#10B981" />
+              </CardContent>
+            </Card>
+          </View>
+
+          {/* Account */}
+          <SettingsSection
+            title="ACCOUNT"
+            rows={[
+              { icon: User, label: t('personalDetails'), color: '#8B5CF6', onPress: () => router.push('/profile/personal-details') },
+              { icon: Bell, label: 'Notification Settings', color: '#F97316', onPress: () => router.push('/settings/notifications') },
+              { icon: Shield, label: 'Privacy & Security', color: '#3B82F6', onPress: () => router.push('/settings/privacy') },
+              { icon: HelpCircle, label: 'Help & Support', color: '#06B6D4', onPress: () => router.push('/settings/help-support') },
+            ]}
+          />
+
+          {/* Logout */}
+          <Button
+            variant="outline"
+            style={[styles.logoutBtn, { borderColor: colors.destructive + '40' }]}
+            onPress={handleLogout}
+          >
+            <LogOut size={18} color={colors.destructive} />
+            <Typography.P style={{ color: colors.destructive, fontWeight: '700' }}>Logout</Typography.P>
+          </Button>
+
+          <Typography.Muted style={styles.version}>AgriNexa v1.0.4</Typography.Muted>
         </View>
-
-        {/* Action List */}
-        <Card style={{ marginTop: 16 }}>
-          <CardContent style={{ padding: 0 }}>
-            <ActionItem icon={User} label="Personal Details" />
-            <Separator />
-            <ActionItem icon={Bell} label="Notification Settings" />
-            <Separator />
-            <ActionItem icon={HelpCircle} label="Help & Support" />
-          </CardContent>
-        </Card>
-
-        <Button 
-          variant="ghost" 
-          style={styles.logoutBtn} 
-          onPress={handleLogout}
-        >
-          <LogOut size={20} color={colors.destructive} />
-          <Typography.Large style={{ color: colors.destructive, fontWeight: '700' }}>
-            Logout
-          </Typography.Large>
-        </Button>
-      </View>
-    </KeyboardResponsiveView>
+      </ScrollView>
+    </View>
   );
 }
 
-const FarmStatCard = ({ icon: Icon, label, val }: any) => {
+const InfoRow = ({ icon: Icon, label, val, isBadge }: any) => {
   const { colors } = useTheme();
   return (
-    <Card style={styles.statCard}>
-      <CardContent style={{ padding: 20, gap: 8 }}>
-        <View style={[styles.statIconBox, { backgroundColor: colors.tint + '10' }]}>
-          <Icon size={18} color={colors.tint} />
-        </View>
-        <Typography.Small style={{ color: colors.mutedForeground, fontWeight: '700' }}>
-          {label}
-        </Typography.Small>
-        <Typography.P style={{ fontWeight: '800' }}>{val}</Typography.P>
-      </CardContent>
-    </Card>
-  );
-}
-
-const ActionItem = ({ icon: Icon, label }: any) => {
-  const { colors } = useTheme();
-  return (
-    <Button variant="ghost" style={styles.actionItemInner}>
-      <View style={styles.actionLeft}>
-        <View style={[styles.actionIconBox, { backgroundColor: colors.mutedForeground + '15' }]}>
-          <Icon size={20} color={colors.mutedForeground} />
-        </View>
-        <Typography.P style={{ fontWeight: '600' }}>{label}</Typography.P>
+    <View style={styles.infoRow}>
+      <View style={styles.rowLeft}>
+        <Icon size={16} color={colors.mutedForeground} />
+        <Typography.P style={{ fontWeight: '600', color: colors.foreground }}>{label}</Typography.P>
       </View>
-      <ChevronRight size={20} color={colors.mutedForeground} />
-    </Button>
+      {isBadge ? <Badge>{val}</Badge> : <Typography.Small style={{ color: colors.mutedForeground }}>{val}</Typography.Small>}
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scrollContent: { paddingBottom: 40 },
-  header: { padding: 30, paddingTop: 60, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerTitle: { letterSpacing: -1 },
-  content: { flex: 1, paddingHorizontal: 20 },
-  userCard: { borderRadius: 32 },
-  userCardContent: { flexDirection: 'row', alignItems: 'center', padding: 24 },
-  avatarBox: { width: 80, height: 80, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  userInfo: { marginLeft: 20, flex: 1, gap: 4 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 32, marginBottom: 16, marginLeft: 8 },
-  sectionTitle: { fontSize: 20 },
-  farmGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  statCard: { width: '48%', borderRadius: 24, marginBottom: 16 },
-  statIconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  actionItemInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 24, paddingHorizontal: 16, height: 'auto' },
-  actionLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  actionIconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 32, paddingVertical: 16, gap: 10, height: 'auto' },
+  scroll: { paddingBottom: 110 },
+  header: { paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16, borderBottomWidth: 1 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
+  settingsBtn: { width: 40, height: 40, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  body: { paddingHorizontal: 20, paddingTop: 20, gap: 12 },
+  section: { gap: 8 },
+  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1, marginLeft: 2 },
+  card: { borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
+  infoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14 },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  divider: { height: 1 },
+  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12, height: 48, borderRadius: 12, gap: 8 },
+  version: { textAlign: 'center', marginTop: 16 },
 });

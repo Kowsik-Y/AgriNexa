@@ -4,11 +4,12 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
-  ActivityIndicator,
   PressableProps,
   Platform,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/hooks/use-theme';
+import { Spinner } from './Spinner';
 
 export type ButtonVariant =
   | 'default'
@@ -39,6 +40,7 @@ export const Button = ({
   ...props
 }: ButtonProps) => {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   const getVariantStyle = (): ViewStyle => {
     switch (variant) {
@@ -92,6 +94,7 @@ export const Button = ({
   };
 
   const isDisabled = disabled || loading;
+  const content = typeof children === 'string' ? t(children) : children;
 
   return (
     <Pressable
@@ -113,7 +116,7 @@ export const Button = ({
       {...props}
     >
       {loading ? (
-        <ActivityIndicator color={getTextStyle().color as string} size="small" />
+        <Spinner size={18} color={getTextStyle().color as string} />
       ) : typeof children === 'string' ? (
         <Text
           style={[
@@ -124,7 +127,7 @@ export const Button = ({
             textStyle,
           ]}
         >
-          {children}
+          {content}
         </Text>
       ) : (
         children

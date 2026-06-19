@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ViewStyle, TextStyle, StyleProp } from 'react-native';
+import { View, Text, StyleSheet, ViewStyle, TextStyle, StyleProp, Platform } from 'react-native';
 import { useTheme } from '@/hooks/use-theme';
 
 interface CardProps {
@@ -26,21 +26,23 @@ export const CardHeader = ({ children, style }: CardProps) => (
   <View style={[styles.header, style]}>{children}</View>
 );
 
+import { Typography } from './Typography';
+
 export const CardTitle = ({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) => {
   const { colors } = useTheme();
   return (
-    <Text style={[styles.title, { color: colors.cardForeground }, style]}>
+    <Typography.H4 style={[{ color: colors.cardForeground }, style]}>
       {children}
-    </Text>
+    </Typography.H4>
   );
 };
 
 export const CardDescription = ({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) => {
   const { colors } = useTheme();
   return (
-    <Text style={[styles.description, { color: colors.mutedForeground }, style]}>
+    <Typography.Muted style={[{ color: colors.mutedForeground }, style]}>
       {children}
-    </Text>
+    </Typography.Muted>
   );
 };
 
@@ -56,11 +58,18 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 8,
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 1,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
+      },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 1,
+        elevation: 1,
+      },
+    }),
   },
   header: {
     padding: 24,

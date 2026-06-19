@@ -49,13 +49,23 @@ export const Badge = ({
     }
   };
 
+  const renderChildren = () => {
+    return React.Children.toArray(children).map((child, index) => {
+      if (typeof child === 'string' || typeof child === 'number') {
+        return (
+          <Text key={`badge-text-${index}`} style={[styles.text, getTextStyle(), textStyle]}>
+            {child}
+          </Text>
+        );
+      }
+
+      return child;
+    });
+  };
+
   return (
     <View style={[styles.badge, getVariantStyle(), style]}>
-      {typeof children === 'string' ? (
-        <Text style={[styles.text, getTextStyle(), textStyle]}>{children}</Text>
-      ) : (
-        children
-      )}
+      {renderChildren()}
     </View>
   );
 };
@@ -63,6 +73,7 @@ export const Badge = ({
 const styles = StyleSheet.create({
   badge: {
     alignSelf: 'flex-start',
+    flexDirection: 'row',
     borderRadius: 9999,
     paddingHorizontal: 10,
     paddingVertical: 2,

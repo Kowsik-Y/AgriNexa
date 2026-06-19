@@ -1,17 +1,18 @@
 import React, { useEffect, useRef } from 'react';
 import {
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
   View,
   Animated,
   ViewStyle,
   StyleProp,
+  Platform,
 } from 'react-native';
 import { useTheme } from '@/hooks/use-theme';
 
 interface SwitchProps {
   checked?: boolean;
-  onCheckedChange?: (checked: boolean) => void;
+  onCheckedChange?: (checked: boolean, coords?: { x: number; y: number }) => void;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 }
@@ -28,15 +29,17 @@ export const Switch = ({
   useEffect(() => {
     Animated.spring(translateX, {
       toValue: checked ? 18 : 2,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
       bounciness: 4,
     }).start();
-  }, [checked]);
+  }, [checked, translateX]);
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.8}
-      onPress={() => onCheckedChange?.(!checked)}
+    <Pressable
+      onPress={(event) => {
+        const { pageX, pageY } = event.nativeEvent;
+        onCheckedChange?.(!checked, { x: pageX, y: pageY });
+      }}
       disabled={disabled}
       style={[
         styles.track,
@@ -54,9 +57,12 @@ export const Switch = ({
             backgroundColor: colors.card,
             transform: [{ translateX }],
           },
+          Platform.OS === 'web' && { 
+            boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+          } as any
         ]}
       />
-    </TouchableOpacity>
+    </Pressable>
   );
 };
 
@@ -71,10 +77,14 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 999,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1,
-    elevation: 2,
+    ...Platform.select({
+      native: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 1,
+        elevation: 2,
+      }
+    }),
   },
 });

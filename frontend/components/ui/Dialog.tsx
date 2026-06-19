@@ -26,7 +26,7 @@ export const Dialog = ({ open, onOpenChange, children }: DialogProps) => {
       transparent
       visible={open}
       onRequestClose={() => onOpenChange(false)}
-      animationType="fade"
+      animationType="slide"
     >
       <TouchableWithoutFeedback onPress={() => onOpenChange(false)}>
         <View style={styles.overlay}>
@@ -58,7 +58,7 @@ export const AlertDialog = ({ open, onOpenChange, children }: DialogProps) => {
       onRequestClose={() => onOpenChange(false)}
       animationType="fade"
     >
-      <View style={styles.overlay}>
+      <View style={styles.overlay}  >
         <View style={[styles.contentContainer, { backgroundColor: colors.background }]}>
           <Card style={styles.card}>
             {children}
