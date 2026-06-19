@@ -10,25 +10,25 @@ AgriNexa is composed of a FastAPI backend (containerized AI and service logic) a
 
 ```mermaid
 graph TD
-    subgraph Mobile Frontend (Expo)
-        UI[Farmer Dashboard] --> |Query / Log Tasks| APIClient[API Services]
-        APIClient --> |Prices, Weather, Chat| Gateway[APIRouter]
+    subgraph "Mobile Frontend (Expo)"
+        UI["Farmer Dashboard"] --> |"Query / Log Tasks"| APIClient["API Services"]
+        APIClient --> |"Prices, Weather, Chat"| Gateway["APIRouter"]
     end
 
-    subgraph Backend Services (FastAPI)
-        Gateway --> AgentRouter[ToolRouterService]
-        Gateway --> FlowService[AgriFlowPlannerService]
-        Gateway --> MarketService[MarketService]
-        Gateway --> WeatherService[WeatherService]
+    subgraph "Backend Services (FastAPI)"
+        Gateway --> AgentRouter["ToolRouterService"]
+        Gateway --> FlowService["AgriFlowPlannerService"]
+        Gateway --> MarketService["MarketService"]
+        Gateway --> WeatherService["WeatherService"]
 
-        AgentRouter --> |Classify Intent| CrewEngine[CrewAI Engine]
-        CrewEngine --> |Planner Agent| A1[Farm Planner]
-        CrewEngine --> |Risk Analyst Agent| A2[Risk Analyst]
-        CrewEngine --> |Advisory Writer Agent| A3[Advisory Writer]
+        AgentRouter --> |"Classify Intent"| CrewEngine["CrewAI Engine"]
+        CrewEngine --> |"Planner Agent"| A1["Farm Planner"]
+        CrewEngine --> |"Risk Analyst Agent"| A2["Risk Analyst"]
+        CrewEngine --> |"Advisory Writer Agent"| A3["Advisory Writer"]
 
-        FlowService --> |Blueprints| MongoDB[(MongoDB - session.db)]
-        MarketService --> |Live Mandi Feed| DataGov[Data.gov.in Agmarknet API]
-        WeatherService --> |Real-time API| OpenWeather[OpenWeather API]
+        FlowService --> |"Blueprints"| MongoDB[("MongoDB - session.db")]
+        MarketService --> |"Live Mandi Feed"| DataGov["Data.gov.in Agmarknet API"]
+        WeatherService --> |"Real-time API"| OpenWeather["OpenWeather API"]
     end
 ```
 
