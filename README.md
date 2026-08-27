@@ -1,7 +1,6 @@
 # AgriNexa 🌱
 
 AgriNexa is an intelligent, full-stack agricultural decision-support platform designed to empower small and medium farmers. By blending **agentic AI orchestration**, **real-time weather diagnostics**, and **live market mandi price feeds**, AgriNexa provides personalized crop scheduling, predictive risk warnings, and storage advisory to maximize yield and farmer income.
-
 ---
 
 ## 🏗️ System Architecture
