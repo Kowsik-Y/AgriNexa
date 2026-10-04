@@ -318,23 +318,39 @@ async def reset_password(req: ResetPasswordRequest):
 
 @router.post("/google")
 async def google_auth(login: GoogleLogin):
-    token = create_access_token(data={"sub": login.user_id})
-
+    # 1. Check if user already exists by Google ID
     existing = await get_user_by_id(login.user_id)
-    if not existing:
-        await db.users.insert_one(
-            {
-                "user_id": login.user_id,
-                "email": login.email,
-                "name": login.name,
-                "onboarded": False,
-                "appLang": "English",
-                "village": "",
-                "district": "",
-                "state": "",
-                "crops": "",
-                "interests": [],
-            }
-        )
+    user_id = login.user_id
 
-    return {"access_token": token, "token_type": "bearer", "user_id": login.user_id}
+    if not existing:
+        # 2. Check if user already exists by Email
+        existing_by_email = None
+        if login.email:
+            existing_by_email = await get_user_by_identifier(email=login.email, phone=None)
+
+        if existing_by_email:
+            # 3. Account Linking: Log them into their existing Email/Password account!
+            user_id = existing_by_email["user_id"]
+        else:
+            # 4. Completely new user, insert them
+            await db.users.insert_one(
+                {
+                    "user_id": user_id,
+                    "email": login.email,
+                    "name": login.name,
+                    "onboarded": False,
+                    "appLang": "English",
+                    "village": "",
+                    "district": "",
+                    "state": "",
+                    "crops": "",
+                    "interests": [],
+                }
+            )
+    else:
+        user_id = existing["user_id"]
+
+    # Generate token using the correct user_id (either existing UUID or new Google ID)
+    token = create_access_token(data={"sub": user_id})
+
+    return {"access_token": token, "token_type": "bearer", "user_id": user_id}
