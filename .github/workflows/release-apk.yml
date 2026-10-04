@@ -58,6 +58,10 @@ jobs:
           }
           EOF
 
+      - name: Increase Gradle JVM Heap Space for Split APKs
+        working-directory: ./frontend/android
+        run: sed -i 's/org.gradle.jvmargs=-Xmx2048m/org.gradle.jvmargs=-Xmx5120m/g' gradle.properties
+
       - name: Build APKs (Gradle)
         working-directory: ./frontend/android
         run: ./gradlew assembleRelease
