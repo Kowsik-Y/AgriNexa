@@ -5,6 +5,7 @@ from app.api.v1.endpoints import (
 	agri_flow,
 	auth,
 	chat,
+	growth_stage,
 	market,
 	prediction,
 	profile,
@@ -24,6 +25,7 @@ api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
 api_router.include_router(rag.router, prefix="/rag", tags=["rag"])
 api_router.include_router(agent.router, prefix="/agent", tags=["agent"])
 api_router.include_router(prediction.router, prefix="/prediction", tags=["prediction"])
+api_router.include_router(growth_stage.router, prefix="/prediction", tags=["growth-stage"])
 api_router.include_router(market.router)
 api_router.include_router(recommendation.router)
 api_router.include_router(weather.router)

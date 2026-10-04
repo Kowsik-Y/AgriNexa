@@ -7,20 +7,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.router import api_router
+from app.core.config import settings
 from app.core.logging import setup_logging
-from app.db.session import client
+from app.db.init_db import init_db
+from app.db.session import close_db
 
 setup_logging()
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    try:
-        await client.admin.command("ping")
-    except Exception:
-        pass
+    await init_db()
     yield
-    client.close()
+    await close_db()
 
 app = FastAPI(
     title="AgriNexa API",

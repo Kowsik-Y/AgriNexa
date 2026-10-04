@@ -321,7 +321,7 @@ def _compute_confidence(
     }
 
 
-async def _run_crewai_summary(
+async def _run_langgraph_summary(
     task: str,
     location_name: str | None,
     crop_name: str | None,
@@ -332,9 +332,12 @@ async def _run_crewai_summary(
 ) -> tuple[str | None, str | None]:
 
     try:
-        from crewai import Agent, Crew, Process, Task  # pyright: ignore[reportMissingImports]
+        import typing
+        from langchain_openai import ChatOpenAI
+        from langchain_core.messages import HumanMessage
+        from langgraph.graph import StateGraph, END
     except Exception as exc:
-        return None, f"crewai_import_error:{type(exc).__name__}"
+        return None, f"langgraph_import_error:{type(exc).__name__}"
 
     if settings.openai_api_key and not os.getenv("OPENAI_API_KEY"):
         os.environ["OPENAI_API_KEY"] = settings.openai_api_key
@@ -342,82 +345,91 @@ async def _run_crewai_summary(
         os.environ["OPENAI_API_BASE"] = settings.openai_base_url
 
     llm_model = os.getenv("CREWAI_MODEL", settings.openai_model)
+    
+    try:
+        api_key = os.getenv("NVIDIA_API_KEY") or os.getenv("OPENAI_API_KEY", "dummy")
+        base_url = os.getenv("NVIDIA_BASE_URL") or os.getenv("OPENAI_API_BASE")
+        llm = ChatOpenAI(model=llm_model, api_key=api_key, base_url=base_url, temperature=0.2)
+    except Exception as exc:
+        return None, f"llm_init_error:{type(exc).__name__}"
 
-    crop_label = crop_name or "unknown crop"
-    location_label = location_name or "unknown location"
-    stage_label = crop_stage or "unspecified"
+    class CrewState(typing.TypedDict):
+        task: str
+        location_label: str
+        crop_label: str
+        stage_label: str
+        weather_data: str
+        market_data: str
+        risk_flags: str
+        plan: typing.Optional[str]
+        risks: typing.Optional[str]
+        final_summary: typing.Optional[str]
 
-    planner = Agent(
-        role="Farm Operations Planner",
-        goal="Convert farm context into a practical short action plan.",
-        backstory="You optimize field operations for small and medium farmers.",
-        allow_delegation=False,
-        llm=llm_model,
-        verbose=False,
-    )
-    risk_analyst = Agent(
-        role="Agri Risk Analyst",
-        goal="Identify immediate risks and preventive actions.",
-        backstory="You specialize in weather, pest, and field execution risks.",
-        allow_delegation=False,
-        llm=llm_model,
-        verbose=False,
-    )
-    advisor = Agent(
-        role="Farmer Advisory Writer",
-        goal="Produce concise, clear recommendations with priorities.",
-        backstory="You communicate high-impact farm decisions in plain language.",
-        allow_delegation=False,
-        llm=llm_model,
-        verbose=False,
-    )
-
-    planning_task = Task(
-        description=(
+    async def planner_node(state: CrewState):
+        prompt = (
+            "You are a Farm Operations Planner. Convert farm context into a practical short action plan.\n"
             "Create a practical 7-day farm action strategy from this context.\n"
-            f"Task: {task}\n"
-            f"Location: {location_label}\n"
-            f"Crop: {crop_label}\n"
-            f"Stage: {stage_label}\n"
-            f"Weather: {weather_data or 'not available'}\n"
-            f"Market: {market_data or 'not available'}"
-        ),
-        expected_output="Prioritized operations grouped by immediate, 3-day, and 7-day windows.",
-        agent=planner,
-    )
-    risk_task = Task(
-        description=(
-            "Review the same context and list major operational risks and controls.\n"
-            f"Known risk flags: {risk_flags}"
-        ),
-        expected_output="Top risks and one clear mitigation for each risk.",
-        agent=risk_analyst,
-    )
-    final_task = Task(
-        description=(
-            "Combine planning and risk analysis into a final farmer-ready recommendation in under 140 words. "
-            "Include only concrete actions."
-        ),
-        expected_output="Single concise recommendation paragraph for a farmer.",
-        agent=advisor,
-        context=[planning_task, risk_task],
-    )
-
-    def _kickoff() -> str:
-        crew = Crew(
-            agents=[planner, risk_analyst, advisor],
-            tasks=[planning_task, risk_task, final_task],
-            process=Process.sequential,
-            verbose=False,
+            f"Task: {state['task']}\n"
+            f"Location: {state['location_label']}\n"
+            f"Crop: {state['crop_label']}\n"
+            f"Stage: {state['stage_label']}\n"
+            f"Weather: {state['weather_data']}\n"
+            f"Market: {state['market_data']}\n\n"
+            "Output: Prioritized operations grouped by immediate, 3-day, and 7-day windows."
         )
-        result = crew.kickoff()
-        return str(result).strip()
+        msg = await llm.ainvoke([HumanMessage(content=prompt)])
+        return {"plan": msg.content}
+
+    async def risk_node(state: CrewState):
+        prompt = (
+            "You are an Agri Risk Analyst. Identify immediate risks and preventive actions.\n"
+            "Review the context and list major operational risks and controls.\n"
+            f"Task: {state['task']}\n"
+            f"Known risk flags: {state['risk_flags']}\n\n"
+            "Output: Top risks and one clear mitigation for each risk."
+        )
+        msg = await llm.ainvoke([HumanMessage(content=prompt)])
+        return {"risks": msg.content}
+
+    async def advisor_node(state: CrewState):
+        prompt = (
+            "You are a Farmer Advisory Writer. Produce concise, clear recommendations with priorities.\n"
+            "Combine planning and risk analysis into a final farmer-ready recommendation in under 140 words.\n"
+            "Include only concrete actions.\n\n"
+            f"Plan: {state['plan']}\n"
+            f"Risks: {state['risks']}\n"
+        )
+        msg = await llm.ainvoke([HumanMessage(content=prompt)])
+        return {"final_summary": msg.content}
+
+    workflow = StateGraph(CrewState)
+    workflow.add_node("planner", planner_node)
+    workflow.add_node("risk", risk_node)
+    workflow.add_node("advisor", advisor_node)
+
+    workflow.set_entry_point("planner")
+    workflow.add_edge("planner", "risk")
+    workflow.add_edge("risk", "advisor")
+    workflow.add_edge("advisor", END)
+    
+    app = workflow.compile()
+
+    initial_state = {
+        "task": task,
+        "location_label": location_name or "unknown location",
+        "crop_label": crop_name or "unknown crop",
+        "stage_label": crop_stage or "unspecified",
+        "weather_data": str(weather_data or 'not available'),
+        "market_data": str(market_data or 'not available'),
+        "risk_flags": str(risk_flags),
+    }
 
     try:
-        summary = await asyncio.to_thread(_kickoff)
+        final_state = await app.ainvoke(initial_state)
+        summary = final_state.get("final_summary", "")
         return (summary[:1200] if summary else None), None
     except Exception as exc:
-        return None, f"crewai_error:{type(exc).__name__}"
+        return None, f"langgraph_error:{type(exc).__name__}"
 
 
 async def run_crew(task: str, intents: list[str] | None = None) -> dict:
@@ -459,7 +471,7 @@ async def run_crew(task: str, intents: list[str] | None = None) -> dict:
     risk_flags = _risk_reviewer_agent(task)
     execution_protocol = _execution_agent()
 
-    final_summary, crewai_error = await _run_crewai_summary(
+    final_summary, lg_error = await _run_langgraph_summary(
         task=task,
         location_name=location_name,
         crop_name=crop_name,
@@ -468,7 +480,7 @@ async def run_crew(task: str, intents: list[str] | None = None) -> dict:
         market_data=market_data,
         risk_flags=risk_flags,
     )
-    orchestration_engine = "crewai" if final_summary else "native"
+    orchestration_engine = "langgraph" if final_summary else "native"
 
     if not final_summary:
         llm = LLMService()
@@ -499,10 +511,10 @@ async def run_crew(task: str, intents: list[str] | None = None) -> dict:
     return {
         "mode": "agentic-orchestration",
         "orchestration_engine": orchestration_engine,
-        "crewai": {
-            "enabled": os.getenv("AGENT_USE_CREWAI", "1") == "1",
-            "used": orchestration_engine == "crewai",
-            "error": crewai_error,
+        "langgraph": {
+            "enabled": True,
+            "used": orchestration_engine == "langgraph",
+            "error": lg_error,
             "model": os.getenv("CREWAI_MODEL", settings.openai_model),
         },
         "task": task,

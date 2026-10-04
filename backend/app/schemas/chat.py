@@ -14,7 +14,7 @@ class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     language: str = "English"
-    source: Literal["text", "voice", "llm", "rag"] = "text"
+    source: str = "text"
     created_at: str
 
 

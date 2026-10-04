@@ -37,7 +37,7 @@ RAG_MAX_ITEM_CHARS=700
 
 - `app/api/v1/endpoints` - HTTP routes
 - `app/core` - config, security, logging
-- `app/db` - Mongo session/client
+- `app/db` - Neon PostgreSQL session/client (asyncpg)
 - `app/models` - data access helpers
 - `app/schemas` - request/response schemas
 - `app/services` - business/domain logic

@@ -4,12 +4,12 @@ requests
 httpx
 python-dotenv
 numpy
-pymongo
+asyncpg
+psycopg2-binary
 PyJWT
 bcrypt
 email-validator
 python-multipart
-motor
 certifi
 torch
 torchvision
@@ -27,9 +27,14 @@ scikit-image
 # RAG & LLM
 chromadb
 openai
+langchain
+langchain-core
+langchain-openai
+langgraph
 crewai
 huggingface-hub
 sentence-transformers
+duckduckgo-search
 
 # ML utilities
 accelerate

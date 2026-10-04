@@ -1,0 +1,33 @@
+{
+    "dataset": "gorororororo23/plant-growth-data-classification",
+    "target_column": "Growth_Milestone",
+    "features": [
+        "Soil_Type",
+        "Sunlight_Hours",
+        "Water_Frequency",
+        "Fertilizer_Type",
+        "Temperature",
+        "Humidity"
+    ],
+    "classes": [
+        "0",
+        "1"
+    ],
+    "numeric_features": [
+        "Sunlight_Hours",
+        "Temperature",
+        "Humidity"
+    ],
+    "categorical_features": [
+        "Soil_Type",
+        "Water_Frequency",
+        "Fertilizer_Type"
+    ],
+    "model": "Random Forest",
+    "accuracy": 0.5897435897435898,
+    "macro_f1": 0.5894736842105264,
+    "weighted_f1": 0.5892037786774629,
+    "train_samples": 154,
+    "test_samples": 39,
+    "random_seed": 42
+}

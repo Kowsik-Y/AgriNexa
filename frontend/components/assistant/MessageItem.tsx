@@ -1,127 +1,181 @@
-import React, { memo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { RefreshCcw } from 'lucide-react-native';
+import React, { memo, useState } from 'react';
+import { Pressable, Share, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import {
+  BookOpen,
+  Check,
+  Copy,
+  RefreshCcw,
+  Share2,
+  Volume2,
+} from 'lucide-react-native';
 
-import { Badge } from '@/components/ui/Badge';
-import { Card } from '@/components/ui/Card';
-import { Spinner } from '@/components/ui/Spinner';
-import { Typography } from '@/components/ui/Typography';
+import { Icon } from '@/components/reusables/icon';
+import { Text } from '@/components/reusables/text';
+import { Spinner } from '@/components/Spinner';
 import { useTheme } from '@/hooks/use-theme';
+import { MarkdownContent } from './MarkdownContent';
 
 export type ChatMessageItem = {
-    message_id: string;
-    role: 'user' | 'assistant';
-    content: string;
-    language: string;
-    source: string;
-    created_at: string;
-    pending?: boolean;
-    failed?: boolean;
-    retryQuery?: string;
+  message_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  language: string;
+  source: string;
+  created_at: string;
+  pending?: boolean;
+  failed?: boolean;
+  retryQuery?: string;
+  statusText?: string;
 };
 
 type Props = {
-    item: ChatMessageItem;
-    onRetry: (item: ChatMessageItem) => void;
+  item: ChatMessageItem;
+  onRetry: (item: ChatMessageItem) => void;
 };
 
-function formatTime(iso: string) {
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return '';
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
 function MessageItemBase({ item, onRetry }: Props) {
-    const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const [copied, setCopied] = useState(false);
+  const rippleColor = isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.12)';
+  const isUser = item.role === 'user';
 
+  const handleCopy = async () => {
+    try {
+      await Clipboard.setStringAsync(item.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.warn('Failed to copy message:', err);
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: item.content,
+      });
+    } catch (err) {
+      console.warn('Failed to share message:', err);
+    }
+  };
+
+  const handleSpeak = () => {
+    try {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(item.content);
+        window.speechSynthesis.speak(utterance);
+      }
+    } catch (err) {
+      console.warn('Speech playback not available:', err);
+    }
+  };
+
+  // User Message (ChatGPT Blue Rounded Bubble)
+  if (isUser) {
     return (
-        <View style={styles.msgPair}>
-            <Card
-                style={[
-                    item.role === 'user'
-                        ? [styles.userBubble, { backgroundColor: colors.primary }]
-                        : [styles.aiBubble, { borderColor: item.failed ? colors.destructive : colors.border }],
-                ]}
-            >
-                <Pressable
-                    disabled={!(item.failed && item.role === 'assistant')}
-                    onPress={() => onRetry(item)}
-                >
-                    <View style={styles.messageMetaRow}>
-                        <Badge variant={item.role === 'user' ? 'default' : 'outline'}>
-                            {item.role === 'user' ? 'You' : item.source.toUpperCase()}
-                        </Badge>
-                    </View>
-
-                    {item.pending && item.role === 'assistant' ? (
-                        <View style={styles.typingRow}>
-                            <Spinner size={14} color={colors.primary} />
-                            <Typography.Small style={{ color: colors.mutedForeground, marginLeft: 6 }} translate={false}>
-                                Thinking...
-                            </Typography.Small>
-                        </View>
-                    ) : (
-                        <>
-                            {item.failed && item.role === 'assistant' && (
-                                <View style={styles.retryRow}>
-                                    <RefreshCcw size={12} color={colors.destructive} />
-                                    <Typography.Small style={{ color: colors.destructive, marginLeft: 4 }}>
-                                        Retry
-                                    </Typography.Small>
-                                </View>
-                            )}
-                            <Typography.P
-                                style={{
-                                    color: item.role === 'user' ? '#fff' : colors.foreground,
-                                    lineHeight: 22,
-                                }}
-                                translate={false}
-                            >
-                                {item.content}
-                            </Typography.P>
-                            <Typography.Small
-                                style={{
-                                    color: item.role === 'user' ? '#ffffffcc' : colors.mutedForeground,
-                                    alignSelf: 'flex-end',
-                                    marginTop: 4,
-                                }}
-                                translate={false}
-                            >
-                                {formatTime(item.created_at)}
-                            </Typography.Small>
-                        </>
-                    )}
-                </Pressable>
-            </Card>
+      <View className="mb-5 items-end pl-12">
+        <View className="max-w-[85%] rounded-[20px] bg-[#1e345b] dark:bg-[#1a3258] px-4 py-3 shadow-xs">
+          <Text className="text-[15px] leading-relaxed text-white font-normal">
+            {item.content}
+          </Text>
         </View>
+      </View>
     );
+  }
+
+  const isStreamingWithContent = item.pending && Boolean(item.content);
+
+  // Assistant Message (ChatGPT Clean Markdown Stream with Action Buttons)
+  return (
+    <View className="mb-6 items-start w-full">
+      <View
+        className={`w-full ${
+          item.failed
+            ? 'border-destructive/40 bg-destructive/5 border px-4 py-3 rounded-2xl'
+            : ''
+        }`}
+      >
+        {item.pending && !item.content ? (
+          <View className="flex-row items-center gap-2 py-2">
+            <Spinner size={14} color={colors.primary} />
+            <Text variant="muted" className="text-xs italic">
+              {item.statusText || 'Thinking & researching your farm query...'}
+            </Text>
+          </View>
+        ) : (
+          <>
+            {item.failed && (
+              <Pressable
+                onPress={() => onRetry(item)}
+                android_ripple={{ color: 'rgba(239, 68, 68, 0.2)', borderless: false, foreground: true }}
+                className="mb-3 flex-row items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-2 overflow-hidden active:opacity-80"
+              >
+                <Icon as={RefreshCcw} size={14} className="text-destructive" />
+                <Text className="text-xs font-semibold text-destructive">
+                  Failed to send. Tap here to retry
+                </Text>
+              </Pressable>
+            )}
+
+            <MarkdownContent
+              content={item.content}
+              isStreaming={isStreamingWithContent}
+            />
+
+            {!item.pending && item.content ? (
+              <View className="flex-row items-center gap-1 mt-3 pt-1">
+                {/* Copy button */}
+                <Pressable
+                  onPress={handleCopy}
+                  hitSlop={6}
+                  android_ripple={{ color: rippleColor, borderless: true }}
+                  className="h-8 w-8 items-center justify-center rounded-full active:bg-muted/50"
+                >
+                  <Icon
+                    as={copied ? Check : Copy}
+                    size={15}
+                    className={copied ? 'text-primary' : 'text-muted-foreground'}
+                  />
+                </Pressable>
+
+                {/* Speaker button */}
+                <Pressable
+                  onPress={handleSpeak}
+                  hitSlop={6}
+                  android_ripple={{ color: rippleColor, borderless: true }}
+                  className="h-8 w-8 items-center justify-center rounded-full active:bg-muted/50"
+                >
+                  <Icon as={Volume2} size={15} className="text-muted-foreground" />
+                </Pressable>
+
+                {/* Share button */}
+                <Pressable
+                  onPress={handleShare}
+                  hitSlop={6}
+                  android_ripple={{ color: rippleColor, borderless: true }}
+                  className="h-8 w-8 items-center justify-center rounded-full active:bg-muted/50"
+                >
+                  <Icon as={Share2} size={15} className="text-muted-foreground" />
+                </Pressable>
+
+                {/* Sources pill (like in ChatGPT reference) */}
+                <View className="flex-row items-center gap-1.5 ml-2 px-2.5 py-1 rounded-full bg-secondary/80 border border-border/50">
+                  <Icon as={BookOpen} size={13} className="text-muted-foreground" />
+                  <Text className="text-[11px] font-medium text-muted-foreground">
+                    Sources
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+          </>
+        )}
+      </View>
+    </View>
+  );
 }
 
 export const MessageItem = memo(MessageItemBase, (prev, next) => {
-    return prev.item === next.item && prev.onRetry === next.onRetry;
-});
-
-const styles = StyleSheet.create({
-    msgPair: { marginBottom: 16 },
-    messageMetaRow: { marginBottom: 8 },
-    userBubble: {
-        alignSelf: 'flex-end',
-        paddingVertical: 12,
-        paddingHorizontal: 12,
-        borderRadius: 16,
-        borderBottomRightRadius: 4,
-        maxWidth: '80%',
-        borderWidth: 0,
-    },
-    aiBubble: {
-        alignSelf: 'flex-start',
-        borderRadius: 16,
-        borderBottomLeftRadius: 4,
-        maxWidth: '85%',
-        marginTop: 2,
-        padding: 12,
-        borderWidth: 1,
-    },
-    typingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingLeft: 4 },
-    retryRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  return prev.item === next.item && prev.onRetry === next.onRetry;
 });

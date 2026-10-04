@@ -46,3 +46,29 @@ class GoogleLogin(BaseModel):
     user_id: str
     email: Optional[str] = None
     name: Optional[str] = None
+
+
+class SendOTPRequest(BaseModel):
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    purpose: Optional[str] = "verification"  # "verification" | "reset_password"
+
+
+class VerifyOTPRequest(BaseModel):
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    otp: str
+    purpose: Optional[str] = "verification"
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+
+class ResetPasswordRequest(BaseModel):
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    otp: str
+    new_password: str
+

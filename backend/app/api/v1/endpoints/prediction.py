@@ -1,10 +1,33 @@
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from app.core.security import get_current_user
 from app.services.prediction_service import PredictionService
 
 router = APIRouter()
 service = PredictionService()
+
+
+@router.post("/scan/start")
+async def scan_crop_start(file: UploadFile = File(...), _: str = Depends(get_current_user)):
+    """Identify crop + disease using LangGraph (starts a background task)."""
+    from app.services.vision_scan_service import start_scan_task
+
+    image_bytes = await file.read()
+    try:
+        task_id = await start_scan_task(image_bytes, file.content_type or "image/jpeg")
+        return {"task_id": task_id}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Scan unavailable: {exc}")
+
+@router.get("/scan/status/{task_id}")
+async def scan_crop_status(task_id: str, _: str = Depends(get_current_user)):
+    """Get the live status/result of a LangGraph scan task."""
+    from app.services.vision_scan_service import get_scan_task_status
+    
+    status_data = get_scan_task_status(task_id)
+    if status_data.get("error") == "Task not found":
+        raise HTTPException(status_code=404, detail="Task not found")
+    return status_data
 
 
 @router.post("/")

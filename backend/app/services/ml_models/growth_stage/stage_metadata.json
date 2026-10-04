@@ -1,0 +1,21 @@
+{
+    "model": "RandomForestClassifier",
+    "n_estimators": 600,
+    "features": [
+        "N",
+        "P",
+        "K",
+        "temperature",
+        "humidity",
+        "ph",
+        "label"
+    ],
+    "classes": [
+        "Flowering",
+        "Seedling",
+        "Vegetative"
+    ],
+    "accuracy": 0.35909090909090907,
+    "macro_f1": 0.3591495155733526,
+    "weighted_f1": 0.3590573715011541
+}

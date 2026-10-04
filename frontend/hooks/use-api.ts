@@ -25,7 +25,10 @@ export const useApi = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const request = async (fn: () => Promise<any>, options?: { silent?: boolean; skipLoading?: boolean }) => {
+  const request = async (
+    fn: () => Promise<any>,
+    options?: { silent?: boolean; skipLoading?: boolean; returnError?: boolean }
+  ) => {
     if (!options?.skipLoading) {
       setLoading(true);
     }
@@ -57,6 +60,16 @@ export const useApi = () => {
         setError(msg);
         console.warn('API Error:', msg);
       }
+
+      if (options?.returnError) {
+        return {
+          error: msg,
+          detail: msg,
+          message: msg,
+          status: 'error',
+          status_code: err.response?.status,
+        };
+      }
       return null;
     } finally {
       if (!options?.skipLoading) {
@@ -70,12 +83,29 @@ export const useApi = () => {
   };
 
   const register = async (data: { email?: string; phone?: string; password: string; name?: string }) => {
-    return await request(() => api.post('/auth/register', data));
+    return await request(() => api.post('/auth/register', data), { returnError: true });
   };
 
   const login = async (data: { email?: string; phone?: string; password: string }) => {
-    return await request(() => api.post('/auth/login', data));
+    return await request(() => api.post('/auth/login', data), { returnError: true });
   };
+
+  const sendOtp = async (data: { email?: string; phone?: string; purpose?: string }) => {
+    return await request(() => api.post('/auth/send-otp', data), { returnError: true });
+  };
+
+  const verifyOtp = async (data: { email?: string; phone?: string; otp: string; purpose?: string }) => {
+    return await request(() => api.post('/auth/verify-otp', data), { returnError: true });
+  };
+
+  const forgotPassword = async (data: { email?: string; phone?: string }) => {
+    return await request(() => api.post('/auth/forgot-password', data), { returnError: true });
+  };
+
+  const resetPassword = async (data: { email?: string; phone?: string; otp: string; new_password: string }) => {
+    return await request(() => api.post('/auth/reset-password', data), { returnError: true });
+  };
+
 
   const getHomeData = async () => {
     try {
@@ -131,11 +161,49 @@ export const useApi = () => {
   };
 
   const predictDisease = async (imageUri: string) => {
-    return await uploadFile('/predict', imageUri, 'file', 'crop.jpg', 'image/jpeg');
+    return await uploadFile('/prediction/', imageUri, 'file', 'crop.jpg', 'image/jpeg');
   };
 
   const predictCrop = async (imageUri: string) => {
-    return await uploadFile('/predict-crop', imageUri, 'file', 'crop.jpg', 'image/jpeg');
+    return await uploadFile('/prediction/crop', imageUri, 'file', 'crop.jpg', 'image/jpeg');
+  };
+
+  const predictScan = async (
+    imageUri: string,
+    onProgress?: (status: string) => void
+  ) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const startRes = await uploadFile('/prediction/scan/start', imageUri, 'file', 'scan.jpg', 'image/jpeg');
+      if (!startRes || !startRes.task_id) return null;
+      
+      const taskId = startRes.task_id;
+      
+      while (true) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const statusRes = await getRequest(`/prediction/scan/status/${taskId}`);
+        if (!statusRes) return null;
+        
+        if (statusRes.error) {
+          throw new Error(statusRes.error);
+        }
+        
+        if (statusRes.status && onProgress) {
+          onProgress(statusRes.status);
+        }
+        
+        if (statusRes.result) {
+          return statusRes.result;
+        }
+      }
+    } catch (err: any) {
+      setError(err.message);
+      console.error(`Upload error (/prediction/scan):`, err.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const voiceQuery = async (
@@ -460,14 +528,62 @@ export const useApi = () => {
     return await request(() => api.post('/agri-flow/stage-model/test', payload));
   };
 
+  const predictGrowthStage = async (payload: {
+    crop?: string;
+    N?: number;
+    P?: number;
+    K?: number;
+    temperature?: number;
+    humidity?: number;
+    ph?: number;
+  }) => {
+    return await request(() => api.post('/prediction/growth-stage/predict', payload));
+  };
+
+  const predictGrowthMilestone = async (payload: {
+    Soil_Type?: string;
+    Sunlight_Hours?: number;
+    Water_Frequency?: string;
+    Fertilizer_Type?: string;
+    Temperature?: number;
+    Humidity?: number;
+  }) => {
+    return await request(() => api.post('/prediction/growth-stage/milestone', payload));
+  };
+
+  const predictGrowthAll = async (payload: {
+    crop?: string;
+    N?: number;
+    P?: number;
+    K?: number;
+    temperature?: number;
+    humidity?: number;
+    ph?: number;
+    Soil_Type?: string;
+    Sunlight_Hours?: number;
+    Water_Frequency?: string;
+    Fertilizer_Type?: string;
+  }) => {
+    return await request(() => api.post('/prediction/growth-stage/predict-all', payload));
+  };
+
+  const getGrowthStageStatus = async () => {
+    return await request(() => api.get('/prediction/growth-stage/status'));
+  };
+
   return {
     loading,
     error,
     getHomeData,
     getHourlyWeather,
     getWeatherTimeline,
+    predictScan,
     predictDisease,
     predictCrop,
+    predictGrowthStage,
+    predictGrowthMilestone,
+    predictGrowthAll,
+    getGrowthStageStatus,
     voiceQuery,
     sendChatMessage,
     createConversation,
@@ -496,6 +612,10 @@ export const useApi = () => {
     uploadFormData,
     loginWithGoogle,
     register,
-    login
+    login,
+    sendOtp,
+    verifyOtp,
+    forgotPassword,
+    resetPassword,
   };
 };

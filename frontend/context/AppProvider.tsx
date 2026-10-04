@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useColorScheme, Platform } from 'react-native';
+import { useColorScheme as useNativeWindColorScheme } from 'nativewind';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Localization from 'expo-localization';
 import i18n from '@/constants/i18n';
@@ -38,7 +39,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const systemColorScheme = useColorScheme();
-  const [theme, setTheme] = useState<Theme>(systemColorScheme || 'light');
+  const [theme, setTheme] = useState<Theme>(systemColorScheme === 'dark' ? 'dark' : 'light');
   const [appLanguage, setAppLanguageState] = useState<Language>('' as any);
   const [responseLanguage, setResponseLanguageState] = useState<Language>('English');
   const [region, setRegionState] = useState('India');
@@ -52,6 +53,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [isLoaded, setIsLoaded] = useState(false);
   const [themeTransitionCoords, setThemeTransitionCoords] = useState<{ x: number; y: number } | null>(null);
+  const { setColorScheme } = useNativeWindColorScheme();
+
+  // Keep NativeWind (className tokens) in sync with the in-app theme
+  useEffect(() => {
+    setColorScheme(theme);
+  }, [theme, setColorScheme]);
 
   useEffect(() => {
     const loadSettings = async () => {

@@ -68,7 +68,6 @@ class MarketService:
                 logger.warning("Data.gov fetch failed (%s), using mock data...", repr(e))
 
         result = self._mock_market_data(crop_name, district, state)
-        self.cache[cache_key] = (result, datetime.now())
         return result
 
     async def _fetch_data_gov_market(
@@ -96,7 +95,13 @@ class MarketService:
             commodity = commodity_map.get(crop_name, crop_name)
 
             timeout = httpx.Timeout(timeout=self.data_gov_timeout_seconds, connect=6.0)
-            async with httpx.AsyncClient(timeout=timeout) as client:
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": "AgriNexa/1.0",
+                },
+            ) as client:
                 base_params = {
                     "api-key": self.data_gov_key,
                     "format": "json",

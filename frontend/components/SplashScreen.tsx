@@ -324,13 +324,13 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish, theme }) =
 
 const styles = StyleSheet.create({
   container: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 999,
     justifyContent: 'center',
     alignItems: 'center',
   },
   bgDecoration: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
   },

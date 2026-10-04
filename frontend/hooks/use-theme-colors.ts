@@ -6,5 +6,10 @@ import { useAppContext } from '@/context/AppProvider';
  */
 export const useThemeColors = () => {
   const { theme } = useAppContext();
-  return Colors[theme] || Colors.light;
+  const colors = Colors[theme] || Colors.light;
+  return {
+    ...colors,
+    theme: theme || 'light',
+    isDark: theme === 'dark',
+  };
 };

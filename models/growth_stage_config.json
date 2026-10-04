@@ -1,0 +1,36 @@
+{
+    "model_file": "growth_stage_modelfinal.pt",
+    "preprocessor_file": "growth_stage_preprocessor.pkl",
+    "model_type": "GrowthStageNet",
+    "version": "1.0.0",
+    "dataset": "gorororororo23/plant-growth-data-classification",
+    "target_column": "Growth_Milestone",
+    "input_size": 12,
+    "num_classes": 2,
+    "classes": [
+        "0",
+        "1"
+    ],
+    "numeric_features": [
+        "Sunlight_Hours",
+        "Temperature",
+        "Humidity"
+    ],
+    "categorical_features": [
+        "Soil_Type",
+        "Water_Frequency",
+        "Fertilizer_Type"
+    ],
+    "constant_columns": [],
+    "dropped_columns": [],
+    "epochs_requested": 10000,
+    "epochs_completed": 10000,
+    "best_epoch": 5412,
+    "validation_loss": 1.065521478652954,
+    "validation_accuracy": 0.75,
+    "validation_macro_f1": 0.7333333333333334,
+    "test_accuracy": 0.46153846153846156,
+    "test_macro_f1": 0.4558139534883721,
+    "test_weighted_f1": 0.4543828264758497,
+    "trainable_parameters": 181058
+}

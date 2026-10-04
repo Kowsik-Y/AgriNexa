@@ -10,6 +10,7 @@ from .service import (
     score_crop_health,
 )
 from .stage_flow_model_loader import stage_flow_model_loader
+from .growth_stage_loader import growth_stage_model_loader
 
 __all__ = [
     "get_device",
@@ -22,4 +23,5 @@ __all__ = [
     "predict_crop_type_from_image",
     "preload_models",
     "stage_flow_model_loader",
+    "growth_stage_model_loader",
 ]

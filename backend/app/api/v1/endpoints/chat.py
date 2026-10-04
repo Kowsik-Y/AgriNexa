@@ -1,10 +1,11 @@
 import datetime as dt
+import logging
 import re
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 
-from app.core.security import get_current_user
+from app.core.security import decode_token_user, get_current_user
 from app.models.chat import (
     append_message,
     build_chat_title,
@@ -30,16 +31,20 @@ from app.schemas.chat import (
     ConversationSearchResponse,
 )
 from app.api.v1.endpoints.weather_utils import ADVICE_MAP, weather_snapshot
+from app.agents.langgraph_agent import run_agri_agent, stream_agri_agent
 from app.services.agent_service import AgentService
 from app.services.llm_service import LLMService
 from app.services.rag_service import RAGService
 from app.services.tool_router_service import ToolRouterService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 llm_service = LLMService()
 rag_service = RAGService()
 agent_service = AgentService()
 tool_router = ToolRouterService()
+
 
 
 def _normalize_space(text: str) -> str:
@@ -86,8 +91,11 @@ async def chat(payload: ChatRequest) -> ChatResponse:
         answer = await rag_service.answer(payload.message)
         return ChatResponse(answer=answer, source="rag")
 
-    answer = await llm_service.generate(payload.message)
-    return ChatResponse(answer=answer, source="llm")
+    agent_output = await run_agri_agent(query=payload.message, language="English")
+    return ChatResponse(
+        answer=agent_output.get("answer") or "I prepared an agricultural recommendation for you.",
+        source=agent_output.get("source", "agrinexa"),
+    )
 
 
 @router.post("/messages", response_model=ChatSendResponse)
@@ -124,39 +132,16 @@ async def send_message(payload: ChatSendRequest, current_user: str = Depends(get
         source="text",
     )
 
-    recent_user_messages = [
-        msg.get("content", "")
-        for msg in recent_messages
-        if msg.get("role") == "user" and isinstance(msg.get("content"), str)
-    ]
-    tool_call = await tool_router.route_chat(
+    # Execute LangGraph and LangChain multi-agent workflow
+    agent_output = await run_agri_agent(
         query=query,
-        recent_user_messages=recent_user_messages,
-        use_rag=payload.use_rag,
+        language=payload.language,
+        user_id=current_user,
+        conversation_id=conversation["conversation_id"],
+        recent_messages=recent_messages,
     )
-
-    if tool_call["tool"] == "weather":
-        weather_location = tool_call.get("location") or _extract_location(query)
-        if weather_location:
-            answer = _build_weather_reply(weather_location)
-            response_source = "rag"
-        else:
-            answer = (
-                "Share your location (for example: Sathyamangalam) and I will give today's weather "
-                "with farming advice."
-            )
-            response_source = "rag"
-    elif tool_call["tool"] == "agent":
-        agent_result = await agent_service.run(query)
-        result_block = agent_result.get("result", {})
-        answer = str(result_block.get("final_recommendation") or "I prepared an action plan.")
-        response_source = "rag"
-    elif tool_call["tool"] == "rag":
-        answer = await rag_service.answer(query)
-        response_source = "rag"
-    else:
-        answer = await llm_service.generate(query)
-        response_source = "llm"
+    answer = agent_output.get("answer") or "I prepared an agricultural recommendation for you."
+    response_source = agent_output.get("source", "agrinexa")
 
     assistant_message = await append_message(
         user_id=current_user,
@@ -271,3 +256,130 @@ async def delete_conversation(conversation_id: str, current_user: str = Depends(
     if not deleted:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return {"ok": True}
+
+
+@router.websocket("/ws")
+async def chat_websocket(websocket: WebSocket, token: Optional[str] = Query(default=None)):
+    """Real-time bi-directional streaming WebSocket for LangGraph agricultural assistant."""
+    await websocket.accept()
+    user_id = None
+    if token:
+        user_id = decode_token_user(token)
+
+    try:
+        if not user_id:
+            auth_frame = await websocket.receive_json()
+            if auth_frame.get("type") == "auth":
+                user_id = decode_token_user(auth_frame.get("token", ""))
+            if not user_id:
+                await websocket.send_json({"type": "error", "message": "Unauthorized: invalid or missing token"})
+                await websocket.close(code=1008)
+                return
+
+        await websocket.send_json({"type": "authenticated", "user_id": user_id})
+        await ensure_chat_indexes()
+
+        while True:
+            data = await websocket.receive_json()
+            msg_type = data.get("type", "message")
+            if msg_type == "ping":
+                await websocket.send_json({"type": "pong"})
+                continue
+
+            query = (data.get("query") or "").strip()
+            if not query:
+                await websocket.send_json({"type": "error", "message": "Query cannot be empty"})
+                continue
+
+            conversation_id = data.get("conversation_id")
+            language = data.get("language") or "English"
+
+            conversation = None
+            recent_messages = []
+            if conversation_id:
+                conversation = await get_conversation(user_id, conversation_id)
+                if conversation:
+                    recent_messages, _, _ = await list_messages(
+                        user_id, conversation_id, skip=0, limit=8
+                    )
+
+            if not conversation:
+                title = build_chat_title(query)
+                conversation = await create_conversation(user_id, title)
+                conversation_id = conversation["conversation_id"]
+                await websocket.send_json({
+                    "type": "conversation_created",
+                    "conversation": serialize_conversation(conversation),
+                })
+
+            user_msg = await append_message(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                role="user",
+                content=query,
+                language=language,
+                source="text",
+            )
+            await websocket.send_json({
+                "type": "user_message",
+                "message": serialize_message(user_msg),
+            })
+
+            full_text = ""
+            final_source = "agrinexa"
+            crop = None
+            location = None
+            weather_data = None
+            market_data = None
+
+            async for chunk in stream_agri_agent(
+                query=query,
+                language=language,
+                user_id=user_id,
+                conversation_id=conversation_id,
+                recent_messages=recent_messages,
+            ):
+                chunk_type = chunk.get("type")
+                if chunk_type == "status":
+                    await websocket.send_json(chunk)
+                elif chunk_type == "token":
+                    await websocket.send_json(chunk)
+                elif chunk_type == "done":
+                    full_text = chunk.get("full_text", "")
+                    final_source = chunk.get("source", "agrinexa")
+                    crop = chunk.get("crop")
+                    location = chunk.get("location")
+                    weather_data = chunk.get("weather_data")
+                    market_data = chunk.get("market_data")
+
+            # Persist synthesized advisory in DB
+            assistant_msg = await append_message(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                role="assistant",
+                content=full_text,
+                language=language,
+                source=final_source,
+            )
+
+            await websocket.send_json({
+                "type": "done",
+                "conversation_id": conversation_id,
+                "message": serialize_message(assistant_msg),
+                "full_text": full_text,
+                "source": final_source,
+                "crop": crop,
+                "location": location,
+                "weather_data": weather_data,
+                "market_data": market_data,
+            })
+
+    except WebSocketDisconnect:
+        logger.info(f"Chat WebSocket disconnected for user {user_id}")
+    except Exception as e:
+        logger.exception(f"Chat WebSocket error: {e}")
+        try:
+            await websocket.send_json({"type": "error", "message": str(e)})
+        except Exception:
+            pass
+

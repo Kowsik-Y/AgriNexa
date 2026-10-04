@@ -518,7 +518,7 @@ class AgriFlowPlannerService:
 
         now = datetime.datetime.utcnow()
         await db.agri_flow_plans.update_one(
-            {"_id": plan_doc["_id"]},
+            {"plan_id": plan_doc.get("plan_id") or plan_doc.get("_id")},
             {
                 "$set": {
                     "tasks": tasks,
@@ -535,7 +535,7 @@ class AgriFlowPlannerService:
                 "task_id": task_id,
                 "status": updated_task.get("status"),
                 "note": payload.get("note"),
-                "timestamp": now,
+                "timestamp": now.isoformat(),
             }
         )
 

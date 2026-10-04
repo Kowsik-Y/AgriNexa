@@ -6,7 +6,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from pymongo import ASCENDING, DESCENDING
+ASCENDING = 1
+DESCENDING = -1
 
 from app.db.session import db
 
@@ -32,10 +33,19 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
 
-def _iso(value: dt.datetime | None) -> str:
+def _iso(value: Any) -> str:
     if not value:
         return _utc_now().isoformat()
-    return value.astimezone(UTC).isoformat()
+    if isinstance(value, str):
+        return value
+    if hasattr(value, "astimezone"):
+        try:
+            return value.astimezone(UTC).isoformat()
+        except Exception:
+            pass
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
 
 
 def _message_to_dict(message: ChatMessageModel) -> dict[str, Any]:
@@ -246,6 +256,8 @@ async def list_messages(
         tail = items[-1].get("created_at")
         if isinstance(tail, dt.datetime):
             next_cursor = tail.astimezone(UTC).isoformat()
+        elif isinstance(tail, str):
+            next_cursor = tail
 
     return items, total, next_cursor
 

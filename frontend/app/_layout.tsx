@@ -1,15 +1,17 @@
+import '../global.css';
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import 'react-native-reanimated';
 import { useEffect, useState } from 'react';
+import { PortalHost } from '@rn-primitives/portal';
 
 // import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 
 import { AppProvider, useAppContext } from '../context/AppProvider';
 import { useApi } from '../hooks/use-api';
-import { DesktopSidebar } from '@/components/ui/DesktopSidebar';
+import { DesktopSidebar } from '@/components/DesktopSidebar';
 import { getOnboardedFlag, getSession, getUserProfile, setOnboardedFlag, setUserProfile } from '@/lib/auth-storage';
 import { SplashScreen } from '@/components/SplashScreen';
 import * as NativeSplashScreen from 'expo-splash-screen';
@@ -87,7 +89,7 @@ function RootLayoutNav() {
     };
 
     checkSession();
-  }, [isLoaded]);
+  }, [isLoaded, pathname]);
 
   // Keep users on their current route when allowed, only redirect when access is invalid.
   useEffect(() => {
@@ -100,7 +102,7 @@ function RootLayoutNav() {
 
     console.log('[Navigation] authState:', authState, 'pathname:', pathname, 'segments:', segments);
 
-    if (authState === 'unauthenticated' && !inAuthFlow) {
+    if (authState === 'unauthenticated' && !isAuthPath) {
       console.log('[Navigation] Session missing, redirecting to auth');
       router.replace('/(auth)/auth');
     } else if (authState === 'onboarding' && !isOnboardingPath) {
@@ -108,7 +110,7 @@ function RootLayoutNav() {
       router.replace('/(auth)/onboarding');
     } else if (authState === 'authenticated' && inAuthFlow) {
       console.log('[Navigation] Auth complete, navigating to home');
-      router.replace('/(tabs)');
+      router.replace('/(private)/(tabs)');
     }
   }, [authState, isReady, pathname, segments, router]);
 
@@ -120,45 +122,58 @@ function RootLayoutNav() {
   if (!isLoaded || !isReady) return null;
 
   return (
-    <View style={styles.container}>
+    <View
+      className="flex-1 bg-background"
+      style={{ backgroundColor: theme === 'dark' ? '#0F172A' : '#F8FAFC' }}
+    >
       {showSplash && (
         <SplashScreen onFinish={() => setShowSplash(false)} theme={theme} />
       )}
-      <View style={[styles.main, { flexDirection: showSidebar ? 'row' : 'column' }]}>
-        {showSidebar && <DesktopSidebar />}
-        <View style={{ flex: 1 }}>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(auth)" options={{ headerShown: false, gestureEnabled: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          </Stack>
-        </View>
-      </View>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: 'transparent' },
+        }}
+      >
+        <Stack.Screen name="(auth)" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="(private)" options={{ headerShown: false }} />
+      </Stack>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      <PortalHost />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  main: {
-    flex: 1,
-  },
-});
 
 import { I18nextProvider } from 'react-i18next';
 import i18n from '@/constants/i18n';
-import { ToastProvider } from '@/components/ui/Toast';
+import { ToastProvider } from '@/components/Toast';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+
+function ThemedRootLayout() {
+  const { theme } = useAppContext();
+  const bgColor = theme === 'dark' ? '#0F172A' : '#F8FAFC';
+
+  return (
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: bgColor }}
+      className="flex-1 bg-background"
+    >
+      <ToastProvider>
+        <RootLayoutNav />
+      </ToastProvider>
+    </SafeAreaView>
+  );
+}
 
 export default function RootLayout() {
   return (
-    <I18nextProvider i18n={i18n}>
-      <AppProvider>
-        <ToastProvider>
-          <RootLayoutNav />
-        </ToastProvider>
-      </AppProvider>
-    </I18nextProvider>
+    <SafeAreaProvider>
+      <I18nextProvider i18n={i18n}>
+        <AppProvider>
+          <ThemedRootLayout />
+        </AppProvider>
+      </I18nextProvider>
+    </SafeAreaProvider>
   );
 }

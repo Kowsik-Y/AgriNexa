@@ -18,11 +18,16 @@ def create_access_token(data: dict) -> str:
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
+    user_id = decode_token_user(token)
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return user_id
+
+
+def decode_token_user(token: str) -> Optional[str]:
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-        user_id: Optional[str] = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        return user_id
-    except jwt.PyJWTError as exc:
-        raise HTTPException(status_code=401, detail="Invalid token") from exc
+        return payload.get("sub")
+    except Exception:
+        return None
+
