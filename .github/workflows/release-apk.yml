@@ -20,12 +20,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
 
       - name: Setup Java (Required for Android build)
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
+          cache: 'gradle'
 
       - name: Install dependencies
         working-directory: ./frontend
@@ -65,6 +68,11 @@ jobs:
       - name: Build APKs (Gradle)
         working-directory: ./frontend/android
         run: ./gradlew assembleRelease
+        env:
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+          EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID }}
+          EXPO_PUBLIC_NEON_AUTH_URL: ${{ secrets.EXPO_PUBLIC_NEON_AUTH_URL }}
 
       - name: Publish APKs to GitHub Release
         uses: softprops/action-gh-release@v2

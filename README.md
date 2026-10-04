@@ -1,192 +1,293 @@
-# AgriNexa 🌱
+# AgriNexa
 
-AgriNexa is an intelligent, full-stack agricultural decision-support platform designed to empower small and medium farmers. By blending **agentic AI orchestration**, **real-time weather diagnostics**, and **live market mandi price feeds**, AgriNexa provides personalized crop scheduling, predictive risk warnings, and storage advisory to maximize yield and farmer income.
+AgriNexa is an enterprise-grade, full-stack agricultural decision-support platform engineered to empower smallholder and commercial farmers. Integrating agentic AI orchestration, edge and cloud machine learning models, computer vision disease diagnostics, real-time hyper-local weather intelligence, and live Agmarknet mandi market price feeds, AgriNexa delivers actionable agronomic guidance, adaptive crop schedules, risk mitigation alerts, and financial storage advisories.
+
 ---
 
-## 🏗️ System Architecture
+## Table of Contents
 
-AgriNexa is composed of a FastAPI backend (containerized AI and service logic) and an Expo React Native mobile application for universal delivery across Android, iOS, and Web.
+- [System Architecture](#system-architecture)
+- [Technology Stack](#technology-stack)
+- [Core Engines and Algorithmic Frameworks](#core-engines-and-algorithmic-frameworks)
+  - [1. Agentic Cognitive Orchestration and Multilingual Chat](#1-agentic-cognitive-orchestration-and-multilingual-chat)
+  - [2. Vision-Based Crop Disease Diagnostics](#2-vision-based-crop-disease-diagnostics)
+  - [3. Machine Learning Crop Growth Stage Engine](#3-machine-learning-crop-growth-stage-engine)
+  - [4. AgriFlow Dynamic Scheduling and Stage-Gate Management](#4-agriflow-dynamic-scheduling-and-stage-gate-management)
+  - [5. Microclimatic Pest, Disease, and Spray Feasibility Models](#5-microclimatic-pest-disease-and-spray-feasibility-models)
+  - [6. Mandi Market Intelligence and Storage Financial Advisory](#6-mandi-market-intelligence-and-storage-financial-advisory)
+- [Database Schema and Persistence](#database-schema-and-persistence)
+- [Repository Structure](#repository-structure)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Unified Quickstart](#unified-quickstart)
+  - [Manual Backend Configuration](#manual-backend-configuration)
+  - [Manual Frontend Configuration](#manual-frontend-configuration)
+- [Additional Documentation](#additional-documentation)
+
+---
+
+## System Architecture
+
+AgriNexa utilizes a decoupled, micro-service architecture consisting of a high-throughput FastAPI backend integrated with Neon Serverless PostgreSQL and an Expo/React Native universal client.
 
 ```mermaid
 graph TD
-    subgraph "Mobile Frontend (Expo)"
-        UI["Farmer Dashboard"] --> |"Query / Log Tasks"| APIClient["API Services"]
-        APIClient --> |"Prices, Weather, Chat"| Gateway["APIRouter"]
+    subgraph Client ["Mobile Client (React Native / Expo SDK 57)"]
+        UI["Mobile Dashboard & Tools"]
+        Audio["Voice Service (expo-audio)"]
+        Camera["Leaf Scanner (expo-camera)"]
+        UI --> APIClient["API Client / Axios"]
+        Audio --> APIClient
+        Camera --> APIClient
     end
 
-    subgraph "Backend Services (FastAPI)"
-        Gateway --> AgentRouter["ToolRouterService"]
-        Gateway --> FlowService["AgriFlowPlannerService"]
-        Gateway --> MarketService["MarketService"]
-        Gateway --> WeatherService["WeatherService"]
+    subgraph Gateway ["API Layer (FastAPI)"]
+        APIClient --> Router["APIRouter (/api/v1)"]
+        Router --> Auth["Authentication & JWT Session"]
+        Router --> Endpoints["Specialized Service Endpoints"]
+    end
 
-        AgentRouter --> |"Classify Intent"| CrewEngine["CrewAI Engine"]
-        CrewEngine --> |"Planner Agent"| A1["Farm Planner"]
-        CrewEngine --> |"Risk Analyst Agent"| A2["Risk Analyst"]
-        CrewEngine --> |"Advisory Writer Agent"| A3["Advisory Writer"]
+    subgraph Intelligence ["AI & Machine Learning Layer"]
+        Endpoints --> LangGraph["LangGraph / LangChain Agentic Flow"]
+        Endpoints --> VisionScan["Vision Diagnostics (NVIDIA Llama-3.2-Vision)"]
+        Endpoints --> GrowthModels["Growth Stage Models (RandomForest / PyTorch)"]
+        Endpoints --> RAG["RAG Document Retriever"]
+        VisionScan --> WebSearch["DuckDuckGo Verification"]
+    end
 
-        FlowService --> |"Blueprints"| MongoDB[("MongoDB - session.db")]
-        MarketService --> |"Live Mandi Feed"| DataGov["Data.gov.in Agmarknet API"]
-        WeatherService --> |"Real-time API"| OpenWeather["OpenWeather API"]
+    subgraph DataServices ["Domain & Third-Party Services"]
+        Endpoints --> FlowEngine["AgriFlow Planner Service"]
+        Endpoints --> WeatherService["Weather Service (OpenWeather / IMD)"]
+        Endpoints --> MarketService["Market Service (Data.gov.in Agmarknet API)"]
+    end
+
+    subgraph Storage ["Persistence Layer"]
+        Auth --> NeonDB[("Neon PostgreSQL via asyncpg")]
+        FlowEngine --> NeonDB
+        LangGraph --> NeonDB
     end
 ```
 
 ---
 
-## 🧪 Core Algorithms & Decision Engines
+## Technology Stack
 
-### 1. Agentic Orchestration & Intent Classification
-AgriNexa employs **CrewAI** to model multi-agent cognitive flows, falling back to a structured native LLM router if CrewAI execution fails.
-* **Tool & Intent Router (`ToolRouterService`)**: Classifies query inputs into active tool pipelines (`weather`, `agent`, `rag`, `llm`) and maps tasks to six key agricultural intents: `weather`, `market`, `soil`, `pest`, `irrigation`, and `crop`.
-* **Multi-Agent Collaboration**:
-  * **Farm Operations Planner**: Translates location, crop, growth stage, weather, and market conditions into structured daily tasks.
-  * **Agri Risk Analyst**: Cross-checks operations against chemical safety boundaries and extreme weather forecasts.
-  * **Farmer Advisory Writer**: Condenses findings into plain-language, high-impact advisories (maximum 140 words).
-* **Confidence Scoring Engine**: Computes reliability indexes (`low`, `medium`, `high`) based on the availability and precision of geocoding coordinates, live weather forecasts, crop growth records, and market prices.
+### Backend
+- **Framework**: FastAPI (Python 3.10+) with asynchronous I/O and Uvicorn ASGI server.
+- **Database**: Neon Serverless PostgreSQL managed via asynchronous connection pooling (`asyncpg`).
+- **AI Agent Orchestration**: LangGraph and LangChain for multi-step agentic execution, fallback intent routing, and conversational memory.
+- **Large Language Models**: OpenAI-compatible API interface with adaptive input token budgeting, context compression, and short-mode token truncation.
+- **Computer Vision**: Multi-modal vision pipelines leveraging NVIDIA Vision API (`meta/llama-3.2-11b-vision-instruct`) combined with real-time web search verification (`duckduckgo-search`).
+- **Machine Learning**: Scikit-Learn (Random Forest classifiers), PyTorch (`GrowthStageNet`), Pandas, and NumPy for growth stage and milestone classification.
+- **Audio and Voice**: Fast transcription routing and text-to-speech fallback pipelines.
 
-$$\text{Confidence Score} = (S_{\text{weather}} \times 0.4) + (S_{\text{market}} \times 0.3) + (S_{\text{risk}} \times 0.3)$$
-
----
-
-### 2. Crop Activity Scheduling (AgriFlow Planner)
-The AgriFlow engine templates operations into stages, creating customized checklists for farmers.
-* **Stage-Gate Blueprints**: Automatically schedules activities using crop-specific blueprints (`rice`, `wheat`, `maize`, `cotton`) mapped to crop cycles:
-  * **Land Preparation**: Basal fertilizer and leveling.
-  * **Sowing**: Seed treatment and nursery checks.
-  * **Vegetative**: Top-dressing splits and weed schedules.
-  * **Flowering**: Water maintenance and pollinator protection.
-  * **Harvest**: Drying and grain moisture checks.
-* **Dynamic Real-Time Alignment**: If a farmer logs a field observation indicating early flowering, the service adjusts the starting date of subsequent stages, marks prior tasks as completed/skipped, and recalculates the progress percentage.
+### Frontend
+- **Framework**: React Native 0.86 and Expo SDK 57 with Expo Router (file-based navigation).
+- **Styling**: NativeWind (Tailwind CSS v3) paired with React Native Reusables (`@rn-primitives`) following modern UI design specifications.
+- **State and Cache**: React Context, Async Storage, and custom network hooks.
+- **Internationalization**: `i18next` and `react-i18next` supporting multiple local agricultural languages.
+- **Hardware Integration**: `expo-camera`, `expo-image-picker`, `expo-location`, `expo-audio`, and `expo-notifications`.
 
 ---
 
-### 3. Soil-Crop Suitability Matcher
-Recommends the top 3 optimal crops for a given land parcel using a weight-based scoring system:
+## Core Engines and Algorithmic Frameworks
 
-| Factor | Soil Type / Condition | Score Adjustment | Target Crop Impact |
-| :--- | :--- | :--- | :--- |
-| **Texture** | Clay / Alluvial | $+0.20$ / $+0.10$ | Rice, Wheat (favors water retention) |
-| **Texture** | Loam | $+0.15$ / $+0.10$ | Maize, Groundnut |
-| **Texture** | Sandy | $+0.20$ / $+0.15$ | Millet, Groundnut |
-| **Acidity** | pH < 5.8 | $+0.10$ / $+0.05$ | Millet, Groundnut |
-| **Alkalinity** | pH > 7.8 | $+0.10$ / $+0.05$ | Cotton, Wheat |
-| **Humidity** | Humidity > 75% | $+0.15$ | Rice |
-| **Location** | Region: Delta / Cauvery / Tamil Nadu | $+0.10$ / $+0.05$ | Rice, Cotton |
+### 1. Agentic Cognitive Orchestration and Multilingual Chat
+The conversational assistant operates through a deterministic-first fallback hierarchy:
+- **LangGraph State Graph (`AgriAgentState`)**: Directs farmer queries across localized intent classifiers: `weather`, `market`, `soil`, `pest`, `irrigation`, and `crop`.
+- **Context Injection**: Dynamically injects soil profiles (NPK, pH), regional coordinates, current crop stage, and historical conversation turns.
+- **Deterministic Heuristic Routing**: If external LLM providers become unreachable, the internal fallback router generates deterministic advisory outputs from verified knowledge databases.
+
+### 2. Vision-Based Crop Disease Diagnostics
+The leaf scanner processes farmer image submissions via an end-to-end diagnostic pipeline:
+- **Stage 1 (Vision Inference)**: Analyzes visual symptoms using NVIDIA Vision LLM (`meta/llama-3.2-11b-vision-instruct`) to detect lesions, chlorosis, blights, and pest infestations.
+- **Stage 2 (Real-Time Search Validation)**: Queries DuckDuckGo Web Search with specific crop-pathogen combinations to fetch recent agricultural extension advisories.
+- **Stage 3 (Structured Remediation)**: Synthesizes findings into organic treatments, chemical controls, and preventative field practices formatted in strict JSON schemas.
+
+### 3. Machine Learning Crop Growth Stage Engine
+Housed under `models/` and managed by `GrowthStageModelLoader`:
+- **Multiclass Stage Classifier (`stage_model.pkl`)**: Random Forest model trained on soil nutrients ($N, P, K$), temperature, humidity, pH, and crop identifier to predict physiological phases (`Seedling`, `Vegetative`, `Flowering`, `Maturity`).
+- **Growth Milestone Classifier (`improved_growth_stage_model.pkl`)**: Binary classifier evaluating sunlight hours, irrigation frequency, fertilizer categories, and microclimate parameters.
+- **Deep Neural Network (`growth_stage_modelfinal.pt`)**: PyTorch-based neural network architecture (`GrowthStageNet`) equipped with preprocessing standardizers.
+- **Colab Extensibility**: Dynamic loader support for custom model weights via `backend/app/services/ml_models/colab_imports/`.
+
+### 4. AgriFlow Dynamic Scheduling and Stage-Gate Management
+The AgriFlow planning engine converts static crop blueprints into adaptive calendars:
+- **Blueprint Mapping**: Comprehensive agricultural lifecycles mapped for crops including Rice, Wheat, Maize, Cotton, and Pulses.
+- **Real-Time Stage Shifting**: Farmer-logged observations (such as early panicle emergence or delayed germination) trigger automated phase shifts, task re-indexing, and recalculation of total cycle completion.
+- **Task Verification**: Daily monitoring logs validate field activities against weather windows (preventing fertilizer application before heavy rain).
+
+### 5. Microclimatic Pest, Disease, and Spray Feasibility Models
+Real-time meteorology data translates into operational field thresholds:
+- **Fungal Pathogen Index**:
+  $$\text{Score}_{\text{fungal}} = (15^{\circ}\text{C} \le T \le 25^{\circ}\text{C} \to 40) + (\text{Humidity} > 80\% \to 30) + (\text{Rainfall} > 10\text{mm} \to 30)$$
+- **Bacterial Pathogen Index**:
+  $$\text{Score}_{\text{bacterial}} = (\text{Humidity} > 75\% \to 50) + (\text{Rainfall} > 5\text{mm} \to 50)$$
+- **Chemical Spray Feasibility Check**:
+  - Prohibited: Precipitation $> 2\text{mm}$ (wash-off hazard) or Wind Speed $> 25\text{ km/h}$ (drift risk).
+  - Optimal: Wind Speed between $5\text{ km/h}$ and $15\text{ km/h}$ with clear sky forecasts.
+
+### 6. Mandi Market Intelligence and Storage Financial Advisory
+- **Agmarknet Price Extraction**: Connects to the official Data.gov.in API with an automated 4-tier relaxation strategy (District Mandi $\to$ Regional Center $\to$ State Average $\to$ National Trend).
+- **Warehouse Storage Break-Even Analysis**:
+  Evaluates commodity holding profitability against warehouse fees and projected appreciation:
+  $$\text{Breakeven Monthly Growth (\%)} = \left(\frac{\text{Storage Cost per Unit}}{\text{Current Market Price}}\right) \times 100$$
+  Yields automated Sell versus Hold recommendations based on commodity price volatility trends.
 
 ---
 
-### 4. Weather-Driven Pest & Disease Risk Models
-Pest risk levels are determined programmatically by checking weather values against established microclimatic triggers:
-* **Fungal Disease Risk**:
-  $$\text{Fungal Score} = (15^{\circ}\text{C} \le T \le 25^{\circ}\text{C} \to 40) + (\text{Humidity} > 80\% \to 30) + (\text{Rainfall} > 10\text{mm} \to 30)$$
-* **Bacterial Disease Risk**:
-  $$\text{Bacterial Score} = (\text{Humidity} > 75\% \to 50) + (\text{Rainfall} > 5\text{mm} \to 50)$$
-* **Insect Activity Risk**:
-  $$\text{Insect Score} = (22^{\circ}\text{C} \le T \le 32^{\circ}\text{C} \to 50) + (\text{Wind} < 10\text{ km/h} \to 50)$$
-* **Chemical Spray Feasibility**:
-  * **Not Feasible**: Rain $> 2\text{mm}$ (runs risk of pesticide wash-off) or Wind $> 25\text{ km/h}$ (chemical drift).
-  * **Optimal**: Wind between $5$ and $15\text{ km/h}$ under clear skies.
+## Database Schema and Persistence
+
+Primary data operations are managed within Neon PostgreSQL via asynchronous connection pooling (`asyncpg`). The relational schema comprises:
+
+- `users`: User profiles, credentials, onboarding status, district/state locations, soil parameters ($N, P, K, \text{pH}$), push notification tokens, and monitoring logs.
+- `otps`: Ephemeral authentication and verification records.
+- `chat_conversations`: Conversation sessions, metadata, archive flags, and recent message snippets.
+- `chat_messages`: Message history, role definitions, source mode (voice/text), and user feedback ratings.
+- `agri_flow_plans`: Structured crop calendar documents, active task nodes, and stage progress.
+- `agri_flow_updates`: Audit trail of farmer-initiated stage shifts and schedule overrides.
+- `agri_flow_stage_tests`: Experimental records for model stage predictions.
+- `agri_flow_task_logs`: Historical task completion verification records.
+- `farming_plans`: Custom farm management blueprints and long-term farm data.
 
 ---
 
-### 5. Mandi Market Price Extraction & Storage Decision Engine
-* **Agmarknet API Integration**: Fetches prices from the Data.gov.in database using the API endpoint.
-* **Hierarchical Search Relaxation**:
-  1. Search by exact `State` + `District` + `Commodity`.
-  2. Fallback to `State` + `Market Name` (handles cases where users confuse market and district names).
-  3. Fallback to `State` + `Commodity` average.
-  4. Fallback to commodity average nationwide.
-  5. Distance/Fuzzy matching via Python `SequenceMatcher` to associate user coordinate inputs with closest available mandi records.
-* **Financial Storage Advisory**:
-  Calculates whether storing grains in local warehouses is financially viable by checking the volatility index ($V$) against storage costs.
-  * **Breakeven Calculation**:
-    $$\text{Breakeven Monthly Price Growth (\%)} = \frac{\text{Storage Cost / Unit}}{\text{Current Market Price}} \times 100$$
-  * Recommend **Store** if forecasted price appreciation over 3–6 months exceeds storage costs and breaks even; otherwise, recommend immediate **Sell**.
-
----
-
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 AgriNexa/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py                # FastAPI entrypoint & middleware setup
-│   │   ├── api/v1/endpoints/      # Endpoint controllers (agri_flow, chat, market, weather)
-│   │   ├── core/                  # Configuration settings & environment variables
-│   │   ├── db/                    # MongoDB connection session
-│   │   ├── models/                # Database models & schemas
-│   │   ├── agents/                # CrewAI agent roles & tasks (crew.py, planner.py)
-│   │   ├── services/              # Core logic services (weather, market, RAG, recommendations)
-│   │   └── rag/                   # Document loader, chunker, and retriever setup
-│   └── requirements.txt           # Backend python packages
+│   │   ├── api/v1/endpoints/      # REST API route controllers
+│   │   │   ├── agent.py           # Agent interaction endpoints
+│   │   │   ├── agri_flow.py       # Crop calendar and task management
+│   │   │   ├── auth.py            # JWT authentication and user registration
+│   │   │   ├── chat.py            # Conversational agronomist endpoints
+│   │   │   ├── growth_stage.py    # ML stage prediction controller
+│   │   │   ├── market.py          # Agmarknet mandi price endpoints
+│   │   │   ├── prediction.py      # Plant diagnostics and image endpoints
+│   │   │   ├── profile.py         # Farmer profile and soil data
+│   │   │   ├── rag.py             # Knowledge retrieval endpoints
+│   │   │   ├── recommendation.py  # Crop and input recommendation engine
+│   │   │   ├── voice.py           # Voice input and audio handling
+│   │   │   └── weather.py         # Weather diagnostics and forecast
+│   │   ├── core/                  # Application configuration, security, and logging
+│   │   ├── db/                    # Neon PostgreSQL connection pool and DDL schema
+│   │   ├── agents/                # LangGraph state machines and multi-agent logic
+│   │   ├── services/              # Core business services (vision, weather, market, ML)
+│   │   └── schemas/               # Pydantic validation schemas
+│   ├── Dockerfile                 # Container specification
+│   ├── requirements.txt           # Python backend dependencies
+│   └── README.md                  # Backend specific documentation
 │
 ├── frontend/
 │   ├── app/
-│   │   ├── (auth)/                # Signup, login, & authentication routes
-│   │   ├── (tabs)/                # Main dashboard, agriflow calendar, scan, market prices
-│   │   └── _layout.tsx            # Navigation drawer / structure
-│   ├── components/                # Reusable UI widgets (cards, weather status, loaders)
-│   ├── services/                  # Mobile HTTP clients (weather client, market client)
-│   └── package.json               # Expo & React Native configurations
+│   │   ├── (auth)/                # Authentication screens (login, onboarding)
+│   │   ├── (private)/             # Protected application routes
+│   │   │   ├── (tabs)/            # Main tab navigation (home, agriflow, prices, profile)
+│   │   │   └── (non-tabs)/        # Leaf scanner, assistant, reports, ML test lab
+│   │   └── _layout.tsx            # Root navigation structure
+│   ├── components/                # React Native Reusables UI components
+│   ├── services/                  # Backend HTTP clients and data mappers
+│   ├── context/                   # React context providers
+│   ├── package.json               # Mobile application dependencies
+│   └── README.md                  # Frontend development documentation
 │
-└── README.md                      # Project documentation
+├── models/                        # Pre-trained ML models and stage artifacts
+│   ├── stage_model.pkl            # Random Forest multi-class stage model
+│   ├── improved_growth_stage_model.pkl
+│   └── growth_stage_modelfinal.pt # PyTorch GrowthStageNet deep learning model
+│
+├── .github/workflows/             # Continuous integration and APK build pipelines
+│   └── release-apk.yml            # Android release build workflow
+├── run.sh                         # Unified startup script for backend and frontend
+├── AGENTS.md                      # UI and component styling guidelines
+└── README.md                      # Primary project documentation
 ```
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
-* Python 3.10+
-* Node.js v18+ & npm
-* MongoDB instance (local or Atlas)
+- Python 3.10 or higher
+- Node.js 18.x or higher and npm
+- Neon PostgreSQL database instance (or standard PostgreSQL instance)
 
 ---
 
-### Running the Backend
+### Unified Quickstart
+
+The repository provides a unified runner script that boots both the FastAPI backend and Expo frontend concurrently with automated signal handling:
+
+```bash
+chmod +x run.sh
+./run.sh
+```
+
+---
+
+### Manual Backend Configuration
 
 1. Navigate to the backend directory:
    ```bash
    cd backend
    ```
-2. Set up a virtual environment:
+2. Create and activate a virtual environment:
    ```bash
    python -m venv venv
    source ./venv/bin/activate
    pip install -r requirements.txt
    ```
-3. Create your `.env` file from the config options and populate:
+3. Create `.env` based on `.env.example`:
    ```env
-   OPENAI_API_KEY=your_openai_key
-   DATA_GOV_API_KEY=your_data_gov_india_key
+   DATABASE_URL=postgresql://user:password@ep-sample-pooler.neon.tech/neondb?sslmode=require
+   SECRET_KEY=your_secure_secret_key
+   OPENAI_API_KEY=your_openai_or_groq_key
+   OPENAI_MODEL=gpt-4.1-nano
+   NVIDIA_API_KEY=your_nvidia_vision_key
    OPENWEATHER_API_KEY=your_openweather_key
-   MONGODB_URI=mongodb://localhost:27017/agrinexa
+   DATA_GOV_API_KEY=your_data_gov_india_key
    ```
-4. Run the development server:
+4. Start the ASGI development server:
    ```bash
    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
    ```
-   * Access API docs at: `http://localhost:8000/api/v1/docs`
+5. Interactive OpenAPI documentation is accessible at `http://localhost:8000/api/v1/docs`.
 
 ---
 
-### Running the Frontend (Expo app)
+### Manual Frontend Configuration
 
 1. Navigate to the frontend directory:
    ```bash
    cd frontend
    ```
-2. Install Node dependencies:
+2. Install package dependencies:
    ```bash
    npm install
    ```
-3. Set your backend URL in `.env`:
+3. Configure the environment variable in `.env`:
    ```env
    EXPO_PUBLIC_API_URL=http://localhost:8000/api/v1
    ```
-4. Start the bundler:
+4. Start the Expo development server:
    ```bash
    npx expo start
    ```
-5. Press `a` for Android, `i` for iOS simulator, or scan the QR code using the Expo Go application on a mobile device.
+5. Choose your target platform:
+   - Press `a` for Android emulator or connected device.
+   - Press `i` for iOS simulator.
+   - Press `w` for Web preview.
+   - Scan the terminal QR code using Expo Go.
+
+---
+
+## Additional Documentation
+
+Detailed documentation for individual subsystems is available at:
+
+- [Agent UI and Styling Guidelines (AGENTS.md)](./AGENTS.md)
+- [Backend Subsystem Documentation](./backend/README.md)
+- [Frontend Mobile Client Documentation](./frontend/README.md)
+- [Machine Learning Colab Imports Specification](./backend/app/services/ml_models/colab_imports/README.md)
