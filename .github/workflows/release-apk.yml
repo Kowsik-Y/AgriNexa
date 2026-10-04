@@ -1,0 +1,57 @@
+name: Build and Release Android APK
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger automatically when you push a tag like v1.0.0
+
+permissions:
+  contents: write # Needed to create GitHub Releases
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java (Required for Android build)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm install
+
+      - name: Generate Android Native Code (Prebuild)
+        working-directory: ./frontend
+        run: npx expo prebuild --platform android --clean
+        env:
+          # Pass environment variables needed for the app bundle
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+          EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID }}
+          EXPO_PUBLIC_NEON_AUTH_URL: ${{ secrets.EXPO_PUBLIC_NEON_AUTH_URL }}
+
+      - name: Build APK (Gradle)
+        working-directory: ./frontend/android
+        run: ./gradlew assembleRelease
+
+      - name: Publish APK to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: frontend/android/app/build/outputs/apk/release/app-release.apk
+          name: Release ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
