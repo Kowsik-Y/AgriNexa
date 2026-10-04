@@ -41,14 +41,19 @@ jobs:
           EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID }}
           EXPO_PUBLIC_NEON_AUTH_URL: ${{ secrets.EXPO_PUBLIC_NEON_AUTH_URL }}
 
-      - name: Build APK (Gradle)
+      - name: Enable APK Splits by CPU Architecture
+        working-directory: ./frontend/android/app
+        # This modifies the Gradle file to generate smaller, device-specific APKs
+        run: sed -i 's/def enableSeparateBuildPerCPUArchitecture = false/def enableSeparateBuildPerCPUArchitecture = true/g' build.gradle
+
+      - name: Build APKs (Gradle)
         working-directory: ./frontend/android
         run: ./gradlew assembleRelease
 
-      - name: Publish APK to GitHub Release
+      - name: Publish APKs to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: frontend/android/app/build/outputs/apk/release/app-release.apk
+          files: frontend/android/app/build/outputs/apk/release/*.apk
           name: Release ${{ github.ref_name }}
           generate_release_notes: true
           draft: false
