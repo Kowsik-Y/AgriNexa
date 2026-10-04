@@ -2,7 +2,7 @@
   "expo": {
     "name": "AgriNexa",
     "slug": "AgriNexa",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "agrinexa",
@@ -44,7 +44,8 @@
       "expo-sharing",
       "expo-status-bar",
       "expo-web-browser",
-      "expo-asset"
+      "expo-asset",
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true,

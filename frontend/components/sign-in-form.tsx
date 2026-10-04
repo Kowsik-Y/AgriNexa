@@ -2,9 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Pressable, type TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Eye, EyeOff } from 'lucide-react-native';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
-import { makeRedirectUri } from 'expo-auth-session';
+import { GoogleSignin, isErrorWithCode, statusCodes } from '@react-native-google-signin/google-signin';
 
 import { SocialConnections } from '@/components/social-connections';
 import { Button } from '@/components/reusables/button';
@@ -23,7 +21,6 @@ import { useToast } from '@/components/Toast';
 import { useApi } from '@/hooks/use-api';
 import { setOnboardedFlag, setSession, setUserProfile } from '@/lib/auth-storage';
 
-WebBrowser.maybeCompleteAuthSession();
 
 export interface SignInFormProps {
   onNavigateToSignUp?: () => void;
@@ -52,34 +49,45 @@ export function SignInForm({
     !process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.startsWith('YOUR_')
   );
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    redirectUri: makeRedirectUri({ scheme: 'agrinexa', preferLocalhost: true }),
-  });
-
   useEffect(() => {
-    if (response?.type === 'success') {
-      fetchUserInfo(response.authentication?.accessToken);
+    if (isGoogleConfigured) {
+      GoogleSignin.configure({
+        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+      });
     }
-  }, [response]);
+  }, [isGoogleConfigured]);
 
-  const fetchUserInfo = async (token?: string) => {
-    if (!token) return;
+  const onGooglePress = async () => {
+    if (!isGoogleConfigured) {
+      toast({ title: 'Not Configured', description: 'Google Sign In is not set up.', type: 'destructive' });
+      return;
+    }
+    
     setLoading(true);
     try {
-      const res = await fetch('https://www.googleapis.com/userinfo/v2/me', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const info = await res.json();
-      await handleGoogleLogin(info.id, info.email, info.name);
-    } catch {
-      toast({
-        title: 'Login Error',
-        description: 'Could not retrieve user info from Google.',
-        type: 'destructive',
-      });
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      if (response.data && response.data.user) {
+        await handleGoogleLogin(response.data.user.id, response.data.user.email, response.data.user.name || undefined);
+      } else {
+        throw new Error('No user data returned');
+      }
+    } catch (error: any) {
+      if (isErrorWithCode(error)) {
+        switch (error.code) {
+          case statusCodes.SIGN_IN_CANCELLED:
+            break;
+          case statusCodes.IN_PROGRESS:
+            break;
+          case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+            toast({ title: 'Error', description: 'Play services not available.', type: 'destructive' });
+            break;
+          default:
+            toast({ title: 'Login Error', description: 'Google Sign In failed.', type: 'destructive' });
+        }
+      } else {
+        toast({ title: 'Login Error', description: 'Google Sign In failed.', type: 'destructive' });
+      }
     } finally {
       setLoading(false);
     }
@@ -117,7 +125,7 @@ export function SignInForm({
     }
   };
 
-  const handleGooglePress = () => {
+  const handleGooglePress = async () => {
     if (!isGoogleConfigured) {
       toast({
         title: 'Google Sign-in',
@@ -126,7 +134,35 @@ export function SignInForm({
       });
       return;
     }
-    promptAsync();
+    
+    setLoading(true);
+    try {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      if (response.data && response.data.user) {
+        await handleGoogleLogin(response.data.user.id, response.data.user.email, response.data.user.name || undefined);
+      } else {
+        throw new Error('No user data returned');
+      }
+    } catch (error: any) {
+      if (isErrorWithCode(error)) {
+        switch (error.code) {
+          case statusCodes.SIGN_IN_CANCELLED:
+            break;
+          case statusCodes.IN_PROGRESS:
+            break;
+          case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+            toast({ title: 'Error', description: 'Play services not available.', type: 'destructive' });
+            break;
+          default:
+            toast({ title: 'Login Error', description: 'Google Sign In failed.', type: 'destructive' });
+        }
+      } else {
+        toast({ title: 'Login Error', description: 'Google Sign In failed.', type: 'destructive' });
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const onEmailSubmit = () => {

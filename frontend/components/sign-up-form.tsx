@@ -2,9 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Pressable, type TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Eye, EyeOff } from 'lucide-react-native';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
-import { makeRedirectUri } from 'expo-auth-session';
+import { GoogleSignin, isErrorWithCode, statusCodes } from '@react-native-google-signin/google-signin';
 
 import { SocialConnections } from '@/components/social-connections';
 import { Button } from '@/components/reusables/button';
@@ -23,7 +21,6 @@ import { useToast } from '@/components/Toast';
 import { useApi } from '@/hooks/use-api';
 import { setOnboardedFlag, setSession, setUserProfile } from '@/lib/auth-storage';
 
-WebBrowser.maybeCompleteAuthSession();
 
 export interface SignUpFormProps {
   onNavigateToSignIn?: () => void;
@@ -52,38 +49,13 @@ export function SignUpForm({ onNavigateToSignIn, onNavigateToOtp }: SignUpFormPr
     !process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.startsWith('YOUR_')
   );
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    redirectUri: makeRedirectUri({ scheme: 'agrinexa', preferLocalhost: true }),
-  });
-
   useEffect(() => {
-    if (response?.type === 'success') {
-      fetchUserInfo(response.authentication?.accessToken);
-    }
-  }, [response]);
-
-  const fetchUserInfo = async (token?: string) => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const res = await fetch('https://www.googleapis.com/userinfo/v2/me', {
-        headers: { Authorization: `Bearer ${token}` },
+    if (isGoogleConfigured) {
+      GoogleSignin.configure({
+        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
       });
-      const info = await res.json();
-      await handleGoogleSignUp(info.id, info.email, info.name);
-    } catch {
-      toast({
-        title: 'Sign Up Error',
-        description: 'Could not retrieve user info from Google.',
-        type: 'destructive',
-      });
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [isGoogleConfigured]);
 
   const handleGoogleSignUp = async (googleId: string, userEmail?: string, name?: string) => {
     setLoading(true);
@@ -117,7 +89,7 @@ export function SignUpForm({ onNavigateToSignIn, onNavigateToOtp }: SignUpFormPr
     }
   };
 
-  const handleGooglePress = () => {
+  const handleGooglePress = async () => {
     if (!isGoogleConfigured) {
       toast({
         title: 'Google Sign-in',
@@ -126,7 +98,35 @@ export function SignUpForm({ onNavigateToSignIn, onNavigateToOtp }: SignUpFormPr
       });
       return;
     }
-    promptAsync();
+    
+    setLoading(true);
+    try {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      if (response.data && response.data.user) {
+        await handleGoogleSignUp(response.data.user.id, response.data.user.email, response.data.user.name || undefined);
+      } else {
+        throw new Error('No user data returned');
+      }
+    } catch (error: any) {
+      if (isErrorWithCode(error)) {
+        switch (error.code) {
+          case statusCodes.SIGN_IN_CANCELLED:
+            break;
+          case statusCodes.IN_PROGRESS:
+            break;
+          case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+            toast({ title: 'Error', description: 'Play services not available.', type: 'destructive' });
+            break;
+          default:
+            toast({ title: 'Sign Up Error', description: 'Google Sign Up failed.', type: 'destructive' });
+        }
+      } else {
+        toast({ title: 'Sign Up Error', description: 'Google Sign Up failed.', type: 'destructive' });
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const onSubmit = async () => {
