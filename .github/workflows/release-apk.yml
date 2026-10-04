@@ -43,8 +43,20 @@ jobs:
 
       - name: Enable APK Splits by CPU Architecture
         working-directory: ./frontend/android/app
-        # This modifies the Gradle file to generate smaller, device-specific APKs
-        run: sed -i 's/def enableSeparateBuildPerCPUArchitecture = false/def enableSeparateBuildPerCPUArchitecture = true/g' build.gradle
+        # This appends the split configuration to the end of the Gradle file
+        run: |
+          cat <<EOF >> build.gradle
+          android {
+              splits {
+                  abi {
+                      reset()
+                      enable true
+                      universalApk true
+                      include "armeabi-v7a", "arm64-v8a", "x86_64"
+                  }
+              }
+          }
+          EOF
 
       - name: Build APKs (Gradle)
         working-directory: ./frontend/android
