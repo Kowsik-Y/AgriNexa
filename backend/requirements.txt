@@ -20,31 +20,17 @@ python-multipart
 
 # Data processing & analysis
 pandas
-scipy
-scikit-learn
-scikit-image
 
 # RAG & LLM
-chromadb
 openai
 langchain
 langchain-core
 langchain-openai
 langgraph
-crewai
-huggingface-hub
-sentence-transformers
 duckduckgo-search
 
 # ML utilities
-accelerate
-transformers
-datasets
 tensorflow
-
-# Vector DB alternative options (install as needed)
-# pinecone-client>=3.0.0  # For cloud-hosted vectors
-# weaviate-client>=3.15.0  # For Weaviate vector DB
 
 # Monitoring & logging
 python-json-logger
