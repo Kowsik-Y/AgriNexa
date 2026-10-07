@@ -18,6 +18,12 @@ setup_logging()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await init_db()
+    try:
+        from app.services.ml_models import preload_models
+        preload_models()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Model preloading skipped or failed: {e}")
     yield
     await close_db()
 

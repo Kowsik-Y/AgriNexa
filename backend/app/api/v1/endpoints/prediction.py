@@ -47,6 +47,8 @@ async def predict_disease(file: UploadFile = File(...), _: str = Depends(get_cur
         "dosage": result.get("dosage"),
         "application_frequency": result.get("application_frequency"),
         "is_healthy": result.get("is_healthy", False),
+        "crop": result.get("crop", "Unknown"),
+        "tamil_solution": result.get("tamil_solution", ""),
         "top_3_predictions": result.get("top_3_predictions", []),
         "note": result.get("note", ""),
     }

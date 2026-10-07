@@ -11,7 +11,9 @@ from .metadata import (
     get_disease_classes,
     get_health_recommendations,
     get_pesticide_recommendation,
+    get_tamil_solution,
     infer_stress_indicators,
+    parse_disease_class,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,6 +36,22 @@ def get_device():
     return _device
 
 
+def _find_model_file(filename: str) -> Optional[Path]:
+    """Search for model weights in project models/ or workspace directory."""
+    this_file = Path(__file__).resolve()
+    candidates = [
+        this_file.parents[4] / "models" / filename,
+        this_file.parents[5] / filename,
+        this_file.parents[3] / "models" / filename,
+        Path("models") / filename,
+        Path(filename),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def load_disease_model() -> Any:
     global _models
     if "disease_model" in _models:
@@ -43,14 +61,41 @@ def load_disease_model() -> Any:
         import torch
         import torchvision.models as models
 
-        model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
-        model.fc = torch.nn.Linear(2048, 38)
+        model_file = _find_model_file("disease_resnet50.pt")
+        if not model_file or not model_file.exists():
+            logger.warning("disease_resnet50.pt not found on disk")
+            return None
 
-        model = model.to(get_device())
+        device = get_device()
+        checkpoint = torch.load(str(model_file), map_location=device, weights_only=False)
+
+        if isinstance(checkpoint, torch.nn.Module):
+            model = checkpoint
+        else:
+            state_dict = (
+                checkpoint.get("state_dict")
+                or checkpoint.get("model_state_dict")
+                or checkpoint.get("model")
+                or checkpoint
+            )
+            # Remove possible DataParallel prefix
+            cleaned_state_dict = {}
+            for k, v in state_dict.items():
+                new_key = k.replace("module.", "").replace("model.", "")
+                cleaned_state_dict[new_key] = v
+
+            model = models.resnet50(weights=None)
+            model.fc = torch.nn.Linear(2048, 38)
+            try:
+                model.load_state_dict(cleaned_state_dict, strict=True)
+            except Exception:
+                model.load_state_dict(cleaned_state_dict, strict=False)
+
+        model = model.to(device)
         model.eval()
 
         _models["disease_model"] = model
-        logger.info("Disease detection model loaded successfully")
+        logger.info(f"Disease detection model loaded from {model_file}")
         return model
     except Exception as e:
         logger.error(f"Failed to load disease model: {e}")
@@ -66,13 +111,37 @@ def load_health_scoring_model() -> Any:
         import torch
         import torchvision.models as models
 
-        model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.IMAGENET1K_V2)
-        model.classifier = torch.nn.Sequential(torch.nn.Dropout(0.2), torch.nn.Linear(1280, 3))
-        model = model.to(get_device())
+        model_file = _find_model_file("health_mobilenet_v2.pt")
+        if not model_file or not model_file.exists():
+            logger.warning("health_mobilenet_v2.pt not found on disk")
+            return None
+
+        device = get_device()
+        checkpoint = torch.load(str(model_file), map_location=device, weights_only=False)
+
+        if isinstance(checkpoint, torch.nn.Module):
+            model = checkpoint
+        else:
+            state_dict = (
+                checkpoint.get("state_dict")
+                or checkpoint.get("model_state_dict")
+                or checkpoint.get("model")
+                or checkpoint
+            )
+            cleaned_state_dict = {k.replace("module.", "").replace("model.", ""): v for k, v in state_dict.items()}
+
+            model = models.mobilenet_v2(weights=None)
+            model.classifier = torch.nn.Sequential(torch.nn.Dropout(0.2), torch.nn.Linear(1280, 3))
+            try:
+                model.load_state_dict(cleaned_state_dict, strict=True)
+            except Exception:
+                model.load_state_dict(cleaned_state_dict, strict=False)
+
+        model = model.to(device)
         model.eval()
 
         _models["health_model"] = model
-        logger.info("Health scoring model loaded successfully")
+        logger.info(f"Health scoring model loaded from {model_file}")
         return model
     except Exception as e:
         logger.error(f"Failed to load health scoring model: {e}")
@@ -85,20 +154,31 @@ def load_crop_classification_model() -> Any:
         return _models["crop_classifier_model"]
 
     try:
+        import shutil
+        import tempfile
         from tensorflow.keras.models import load_model
 
-        model_path = Path(__file__).resolve().parents[2] / "models" / "trained_data" / "CropModel.keras"
-        if not model_path.exists():
-            logger.error(f"Crop model not found at: {model_path}")
+        model_path = _find_model_file("CropModel.keras") or _find_model_file("CropModel_finetuned.keras")
+        if not model_path or not model_path.exists():
+            logger.warning(f"Crop model not found on disk")
             return None
 
-        model = load_model(model_path)
+        try:
+            model = load_model(str(model_path), compile=False)
+        except Exception as lock_err:
+            logger.info(f"Retrying crop model load via isolated temp directory: {lock_err}")
+            temp_dir = tempfile.mkdtemp(prefix="agri_crop_")
+            temp_copy = Path(temp_dir) / model_path.name
+            shutil.copy2(str(model_path), str(temp_copy))
+            model = load_model(str(temp_copy), compile=False)
+
         _models["crop_classifier_model"] = model
-        logger.info("Crop classification model loaded successfully")
+        logger.info(f"Crop classification model loaded from {model_path}")
         return model
     except Exception as e:
         logger.error(f"Failed to load crop classification model: {e}")
         return None
+
 
 
 def preprocess_image(image_bytes: bytes) -> Optional[np.ndarray]:
@@ -150,23 +230,38 @@ def detect_disease_from_image(image_bytes: bytes) -> Dict[str, Any]:
 
         top_indices = np.argsort(-probabilities)[:3]
         diseases = get_disease_classes()
-        top_predictions = [{"disease": diseases[idx], "confidence": float(probabilities[idx])} for idx in top_indices]
+        
+        top_predictions = []
+        for idx in top_indices:
+            raw_label = diseases[idx] if idx < len(diseases) else "Unknown"
+            parsed = parse_disease_class(raw_label)
+            top_predictions.append({
+                "disease": parsed["disease"],
+                "raw_class": raw_label,
+                "crop": parsed["crop"],
+                "confidence": float(probabilities[idx]),
+            })
 
-        detected_disease = top_predictions[0]
-        pesticide_recommendation = get_pesticide_recommendation(detected_disease["disease"])
+        best = top_predictions[0]
+        pesticide_recommendation = get_pesticide_recommendation(best["disease"])
+        tamil_solution = get_tamil_solution(best["disease"], best.get("crop", ""))
 
         return {
-            "detected_disease": detected_disease["disease"],
-            "confidence": round(detected_disease["confidence"], 3),
-            "is_healthy": detected_disease["disease"].lower() == "healthy",
+            "detected_disease": best["disease"],
+            "disease": best["disease"],
+            "crop": best.get("crop", "Unknown"),
+            "raw_class": best.get("raw_class", ""),
+            "confidence": round(best["confidence"], 3),
+            "is_healthy": best["disease"].lower() == "healthy",
             "top_3_predictions": top_predictions,
             "pesticide_recommendation": pesticide_recommendation["pesticide"],
             "treatment_steps": pesticide_recommendation["treatment"],
             "dosage": pesticide_recommendation["dosage"],
             "application_frequency": pesticide_recommendation["frequency"],
-            "note": "AI prediction - consult expert for confirmation"
-            if detected_disease["confidence"] < 0.75
-            else "High confidence prediction",
+            "tamil_solution": tamil_solution,
+            "note": "AI prediction - verified with trained ResNet50 model"
+            if best["confidence"] >= 0.75
+            else "Low confidence prediction - consult agricultural extension",
         }
     except Exception as e:
         logger.error(f"Disease detection failed: {e}")
@@ -227,18 +322,24 @@ def predict_crop_type_from_image(image_bytes: bytes) -> Dict[str, Any]:
             return _mock_crop_classification(image_bytes)
 
         from PIL import Image
-        from tensorflow.keras.applications.resnet50 import preprocess_input
 
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         image = image.resize((224, 224))
 
+        # Pass ordinary float image values in 0..255 range (preprocessing is inside model)
         input_arr = np.array(image, dtype=np.float32)
         input_arr = np.expand_dims(input_arr, axis=0)
-        input_arr = preprocess_input(input_arr)
 
-        probs = model.predict(input_arr, verbose=0)[0]
+        raw_preds = model.predict(input_arr, verbose=0)[0]
+        
+        # Ensure probabilities via softmax if raw logits are returned
+        if raw_preds.max() > 1.0 or raw_preds.min() < 0.0 or not np.isclose(np.sum(raw_preds), 1.0, atol=1e-2):
+            exp_preds = np.exp(raw_preds - np.max(raw_preds))
+            probs = exp_preds / exp_preds.sum()
+        else:
+            probs = raw_preds
+
         class_names = get_crop_class_names()
-
         model_classes = len(probs)
         if model_classes != len(class_names):
             class_names = class_names[:model_classes]

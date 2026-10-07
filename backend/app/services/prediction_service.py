@@ -13,3 +13,9 @@ class PredictionService:
         from app.services.ml_models import predict_crop_type_from_image
 
         return predict_crop_type_from_image(image_bytes)
+
+    async def score_health(self, image_bytes: bytes, crop_name: str = "Generic") -> dict:
+        from app.services.ml_models import score_crop_health
+
+        return score_crop_health(image_bytes, crop_name)
+
