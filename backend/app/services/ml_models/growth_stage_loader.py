@@ -46,9 +46,12 @@ class GrowthStageModelLoader:
 
         self.last_error: Optional[str] = None
         self._loaded = False
-        self._load_all()
 
     # ── Loading ──────────────────────────────────────────────────────────
+
+    def _ensure_loaded(self) -> None:
+        if not self._loaded:
+            self._load_all()
 
     def _load_all(self) -> None:
         self._load_stage_model()
@@ -181,6 +184,7 @@ class GrowthStageModelLoader:
         Expected features: N, P, K, temperature, humidity, ph, label (crop name).
         Returns one of: Flowering, Seedling, Vegetative.
         """
+        self._ensure_loaded()
         if self.stage_model is None:
             return self._heuristic_stage(features)
 
@@ -229,6 +233,7 @@ class GrowthStageModelLoader:
         Expected features: Soil_Type, Sunlight_Hours, Water_Frequency,
         Fertilizer_Type, Temperature, Humidity.
         """
+        self._ensure_loaded()
         if self.milestone_model is None:
             return {
                 "predicted_milestone": 0,
@@ -290,6 +295,7 @@ class GrowthStageModelLoader:
 
         Requires the preprocessor to transform raw features into the expected format.
         """
+        self._ensure_loaded()
         if self.pytorch_model is None:
             return {
                 "predicted_class": 0,
@@ -363,6 +369,7 @@ class GrowthStageModelLoader:
     # ── Status & Utilities ───────────────────────────────────────────────
 
     def get_status(self) -> Dict[str, Any]:
+        self._ensure_loaded()
         return {
             "stage_model_loaded": self.stage_model is not None,
             "milestone_model_loaded": self.milestone_model is not None,

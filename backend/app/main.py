@@ -50,6 +50,13 @@ app.add_middleware(
 app.include_router(api_router, prefix="/api/v1")
 
 
+@app.get("/")
+@app.head("/")
+async def root() -> dict:
+    return {"name": "AgriNexa API", "status": "ok", "version": "1.0.0"}
+
+
 @app.get("/health")
+@app.head("/health")
 async def health() -> dict:
     return {"status": "ok"}

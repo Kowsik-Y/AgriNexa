@@ -34,6 +34,22 @@ REASONING_MODEL = os.getenv("NVIDIA_REASONING_MODEL", "nvidia/nemotron-3.5-super
 _CACHE: Dict[str, Dict[str, Any]] = {}
 _CACHE_MAX = 256
 
+def _optimize_image_bytes(image_bytes: bytes) -> tuple[bytes, str]:
+    """Resize image to max 1024x1024 JPEG to conserve RAM on memory-constrained hosting (e.g. Render 512MB)."""
+    try:
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(image_bytes))
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+        out = io.BytesIO()
+        img.save(out, format="JPEG", quality=85, optimize=True)
+        return out.getvalue(), "image/jpeg"
+    except Exception as e:
+        logger.warning(f"Image resize skipped: {e}")
+        return image_bytes, "image/jpeg"
+
 def _normalize_crop(name: str) -> str:
     aliases = {"paddy": "rice", "corn": "maize"}
     cleaned = (name or "").strip()
@@ -109,6 +125,7 @@ async def analyze_image_node(state: GraphState) -> GraphState:
     parsed = _extract_json(raw_text) or {}
     return {
         **state,
+        "image_bytes": b"",  # Free raw bytes immediately to conserve memory
         "crop": parsed.get("crop", "Unknown"),
         "disease": parsed.get("disease", "Unknown"),
         "symptoms": parsed.get("symptoms", "")
@@ -234,10 +251,11 @@ async def run_scan_task(task_id: str, initial_state: dict):
         _TASKS[task_id]["error"] = str(e)
 
 async def start_scan_task(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+    opt_bytes, opt_mime = _optimize_image_bytes(image_bytes)
     task_id = str(uuid.uuid4())
     initial_state = {
-        "image_bytes": image_bytes,
-        "mime_type": mime_type,
+        "image_bytes": opt_bytes,
+        "mime_type": opt_mime,
         "crop": "",
         "disease": "",
         "symptoms": "",
