@@ -28,8 +28,8 @@ logger = logging.getLogger(__name__)
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
 
-VISION_MODEL = "meta/llama-3.2-11b-vision-instruct"
-REASONING_MODEL = "meta/llama-3.2-11b-vision-instruct" 
+VISION_MODEL = os.getenv("NVIDIA_VISION_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b")
+REASONING_MODEL = os.getenv("NVIDIA_REASONING_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b")
 
 _CACHE: Dict[str, Dict[str, Any]] = {}
 _CACHE_MAX = 256
@@ -49,7 +49,9 @@ def _normalize_disease(name: str) -> str:
         if known.lower() == cleaned.lower(): return known
     return cleaned or "Unknown"
 
-def _extract_json(text: str) -> Optional[Dict[str, Any]]:
+def _extract_json(text: Optional[str]) -> Optional[Dict[str, Any]]:
+    if not text:
+        return None
     try: return json.loads(text)
     except Exception:
         match = re.search(r"\{.*\}", text, re.DOTALL)
@@ -68,15 +70,19 @@ class GraphState(TypedDict):
     final_json: Dict[str, Any]
 
 async def analyze_image_node(state: GraphState) -> GraphState:
-    if not NVIDIA_API_KEY:
+    api_key = os.getenv("NVIDIA_API_KEY") or NVIDIA_API_KEY
+    if not api_key:
         raise RuntimeError("No NVIDIA_API_KEY configured in environment.")
 
+    vision_model = os.getenv("NVIDIA_VISION_MODEL", VISION_MODEL)
+    base_url = os.getenv("NVIDIA_BASE_URL", NVIDIA_BASE_URL)
+
     client = ChatOpenAI(
-        api_key=NVIDIA_API_KEY,
-        base_url=NVIDIA_BASE_URL,
-        model=VISION_MODEL,
-        temperature=0,
-        max_tokens=500
+        api_key=api_key,
+        base_url=base_url,
+        model=vision_model,
+        temperature=0.1,
+        max_tokens=1024
     )
     crops = ", ".join(get_crop_class_names())
     diseases = ", ".join(get_disease_classes())
@@ -97,7 +103,10 @@ async def analyze_image_node(state: GraphState) -> GraphState:
         ])
     ])
     
-    parsed = _extract_json(msg.content) or {}
+    raw_text = msg.content if msg.content else ""
+    if not raw_text and getattr(msg, "additional_kwargs", {}).get("reasoning_content"):
+        raw_text = msg.additional_kwargs.get("reasoning_content", "")
+    parsed = _extract_json(raw_text) or {}
     return {
         **state,
         "crop": parsed.get("crop", "Unknown"),
@@ -124,12 +133,30 @@ async def web_search_node(state: GraphState) -> GraphState:
     return {**state, "search_results": search_text}
 
 async def generate_json_node(state: GraphState) -> GraphState:
-    client = ChatOpenAI(
-        api_key=NVIDIA_API_KEY,
-        base_url=NVIDIA_BASE_URL,
-        model=REASONING_MODEL,
-        temperature=0
-    )
+    # Prefer OPENAI_API_KEY / Groq if configured for fast structured JSON synthesis
+    openai_key = os.getenv("OPENAI_API_KEY") or getattr(settings, "openai_api_key", None)
+    openai_base = os.getenv("OPENAI_BASE_URL") or getattr(settings, "openai_base_url", None)
+    openai_model = os.getenv("OPENAI_MODEL") or getattr(settings, "openai_model", None) or "openai/gpt-oss-120b"
+
+    if openai_key:
+        client = ChatOpenAI(
+            api_key=openai_key,
+            base_url=openai_base or None,
+            model=openai_model,
+            temperature=0.1,
+            max_tokens=800
+        )
+    else:
+        api_key = os.getenv("NVIDIA_API_KEY") or NVIDIA_API_KEY
+        reasoning_model = os.getenv("NVIDIA_REASONING_MODEL", REASONING_MODEL)
+        base_url = os.getenv("NVIDIA_BASE_URL", NVIDIA_BASE_URL)
+        client = ChatOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            model=reasoning_model,
+            temperature=0.1,
+            max_tokens=2048
+        )
     
     prompt = (
         f"Crop: {state['crop']}\n"
@@ -146,7 +173,10 @@ async def generate_json_node(state: GraphState) -> GraphState:
     )
     
     msg = await client.ainvoke([SystemMessage(content=prompt)])
-    parsed = _extract_json(msg.content) or {}
+    raw_text = msg.content if msg.content else ""
+    if not raw_text and getattr(msg, "additional_kwargs", {}).get("reasoning_content"):
+        raw_text = msg.additional_kwargs.get("reasoning_content", "")
+    parsed = _extract_json(raw_text) or {}
     
     crop = _normalize_crop(str(parsed.get("crop", state["crop"])))
     disease = _normalize_disease(str(parsed.get("disease", state["disease"])))

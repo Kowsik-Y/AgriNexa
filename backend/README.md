@@ -10,7 +10,7 @@ The AgriNexa backend is a high-performance RESTful API built on FastAPI and Pyth
 - **Relational Storage**: Neon Serverless PostgreSQL interfaced via high-efficiency asynchronous connection pooling (`asyncpg`).
 - **AI Agentic Workflows**: LangGraph state graph engine with deterministic heuristic fallback support.
 - **Machine Learning Inference**: Local Scikit-Learn (`RandomForestClassifier`), PyTorch (`GrowthStageNet`), and dynamic Colab model loader.
-- **Computer Vision Diagnostics**: NVIDIA Vision LLM integration (`meta/llama-3.2-11b-vision-instruct`) combined with DuckDuckGo real-time extension retrieval.
+- **Computer Vision Diagnostics**: NVIDIA Vision LLM integration (`nvidia/nemotron-3.5-super-vl-120b-a12b`) combined with DuckDuckGo real-time extension retrieval.
 - **Third-Party Data Integrations**:
   - OpenWeatherMap & IMD for hyper-local agricultural weather forecasts.
   - Data.gov.in Agmarknet API for real-time mandi commodity price feeds.

@@ -77,7 +77,7 @@ graph TD
 - **Database**: Neon Serverless PostgreSQL managed via asynchronous connection pooling (`asyncpg`).
 - **AI Agent Orchestration**: LangGraph and LangChain for multi-step agentic execution, fallback intent routing, and conversational memory.
 - **Large Language Models**: OpenAI-compatible API interface with adaptive input token budgeting, context compression, and short-mode token truncation.
-- **Computer Vision**: Multi-modal vision pipelines leveraging NVIDIA Vision API (`meta/llama-3.2-11b-vision-instruct`) combined with real-time web search verification (`duckduckgo-search`).
+- **Computer Vision**: Multi-modal vision pipelines leveraging NVIDIA Vision API (`nvidia/nemotron-3.5-super-vl-120b-a12b`) combined with real-time web search verification (`duckduckgo-search`).
 - **Machine Learning**: Scikit-Learn (Random Forest classifiers), PyTorch (`GrowthStageNet`), Pandas, and NumPy for growth stage and milestone classification.
 - **Audio and Voice**: Fast transcription routing and text-to-speech fallback pipelines.
 
@@ -100,7 +100,7 @@ The conversational assistant operates through a deterministic-first fallback hie
 
 ### 2. Vision-Based Crop Disease Diagnostics
 The leaf scanner processes farmer image submissions via an end-to-end diagnostic pipeline:
-- **Stage 1 (Vision Inference)**: Analyzes visual symptoms using NVIDIA Vision LLM (`meta/llama-3.2-11b-vision-instruct`) to detect lesions, chlorosis, blights, and pest infestations.
+- **Stage 1 (Vision Inference)**: Analyzes visual symptoms using NVIDIA Vision LLM (`nvidia/nemotron-3.5-super-vl-120b-a12b`) to detect lesions, chlorosis, blights, and pest infestations.
 - **Stage 2 (Real-Time Search Validation)**: Queries DuckDuckGo Web Search with specific crop-pathogen combinations to fetch recent agricultural extension advisories.
 - **Stage 3 (Structured Remediation)**: Synthesizes findings into organic treatments, chemical controls, and preventative field practices formatted in strict JSON schemas.
 
