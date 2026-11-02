@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Pressable, ScrollView } from 'react-native';
+import { View, Pressable, ScrollView, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AlertTriangle, BarChart3, Sprout, MessageSquare, Tractor } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -37,16 +37,33 @@ export default function HomeScreen() {
   const { getHomeData } = useApi();
   const [data, setData] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    const init = async () => {
+  const loadData = async () => {
+    try {
       const profileStr = await AsyncStorage.getItem('user_profile');
       if (profileStr) setProfile(JSON.parse(profileStr));
       const homeData = await getHomeData();
-      setData(homeData);
-    };
-    init();
+      if (homeData) {
+        setData(homeData);
+      }
+    } catch (err) {
+      console.error('Failed to load home data:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
 
   const isTamil = appLanguage === 'Tamil';
   const weather = data?.weather;
@@ -59,9 +76,18 @@ export default function HomeScreen() {
         ? { card: 'border-amber-500/30 bg-amber-500/10', title: 'text-amber-700 dark:text-amber-300', text: 'text-amber-700/80 dark:text-amber-300/80', badge: 'bg-amber-500/15', badgeText: 'text-amber-600' }
         : { card: 'border-emerald-500/30 bg-emerald-500/10', title: 'text-emerald-700 dark:text-emerald-300', text: 'text-emerald-700/80 dark:text-emerald-300/80', badge: 'bg-emerald-500/15', badgeText: 'text-emerald-600' };
 
+  const conditionText = weather
+    ? (isTamil ? (weather.tamil_condition || weather.condition) : weather.condition)
+    : (loading ? (isTamil ? 'வானிலை ஏற்றுகிறது...' : 'Loading...') : (isTamil ? 'வானிலை பெற முடியவில்லை' : 'Unable to load weather'));
+
   return (
     <View className="flex-1 bg-background">
-      <ScrollView contentContainerClassName="gap-4 p-5">
+      <ScrollView
+        contentContainerClassName="gap-4 p-5"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <View>
           <Text variant="h3">{t('welcome', { name: profile?.name || t('farmer') })} 👋</Text>
           <Text variant="muted">{t('smartAssistant')}</Text>
@@ -72,14 +98,18 @@ export default function HomeScreen() {
             <CardHeader>
               <CardTitle className="text-sky-700 dark:text-sky-300">Weather</CardTitle>
               <CardDescription className="text-sky-600/80 dark:text-sky-300/80">
-                {isTamil ? (weather?.tamil_condition || weather?.condition) : (weather?.condition ?? 'Loading...')}
+                {conditionText}
                 {` · Humidity ${weather?.humidity ?? '--'}%`}
               </CardDescription>
             </CardHeader>
             <CardContent className="items-center gap-3">
-              <Text variant="h1" className="rounded-xl bg-sky-500/15 px-3 py-1 text-center text-sky-500">{weather?.temp ?? '--'}°C</Text>
+              <Text variant="h1" className="rounded-xl bg-sky-500/15 px-3 py-1 text-center text-sky-500">
+                {weather?.temp != null ? `${weather.temp}°C` : '--°C'}
+              </Text>
               {weather?.advice ? (
-                <Text variant="muted" className="text-center text-sky-700 dark:text-sky-200">{isTamil ? (weather.tamil_advice || weather.advice) : weather.advice}</Text>
+                <Text variant="muted" className="text-center text-sky-700 dark:text-sky-200">
+                  {isTamil ? (weather.tamil_advice || weather.advice) : weather.advice}
+                </Text>
               ) : null}
             </CardContent>
             <CardFooter className='mt-0 pt-0'>

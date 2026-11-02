@@ -7,6 +7,7 @@ from .weather_utils import ADVICE_MAP, hourly_snapshot, weather_snapshot
 router = APIRouter(prefix="/weather", tags=["Weather"])
 
 
+@router.get("", include_in_schema=False)
 @router.get("/")
 async def get_weather(location: str = Query(...), _: str = Depends(get_current_user)) -> dict:
     day_key = datetime.datetime.utcnow().strftime("%Y-%m-%d")

@@ -111,10 +111,49 @@ export const useApi = () => {
     try {
       const profileStr = await AsyncStorage.getItem('user_profile');
       const profile = profileStr ? JSON.parse(profileStr) : { district: 'Chennai' };
-      const location = profile.district || 'Chennai';
+      const location = (profile?.district || profile?.location || 'Chennai').trim() || 'Chennai';
+      const safeLocation = encodeURIComponent(location);
 
-      const weather = await request(() => api.get(`/weather?location=${location}`));
-      const alerts = await request(() => api.get(`/pest-alert?location=${location}`));
+      // Run weather and alerts in parallel
+      const [weatherRes, alertsRes] = await Promise.allSettled([
+        request(() => api.get(`/weather/?location=${safeLocation}`), { silent: true }),
+        request(() => api.get(`/pest-alert?location=${safeLocation}`), { silent: true }),
+      ]);
+
+      let weather = weatherRes.status === 'fulfilled' ? weatherRes.value : null;
+      const alerts = alertsRes.status === 'fulfilled' ? alertsRes.value : null;
+
+      // Fallback 1: If /weather/ returned null, try /weather without trailing slash
+      if (!weather) {
+        try {
+          weather = await request(() => api.get(`/weather?location=${safeLocation}`), { silent: true });
+        } catch {
+          // ignore
+        }
+      }
+
+      // Fallback 2: If weather snapshot is still null, construct today's snapshot from timeline
+      if (!weather) {
+        try {
+          const timeline = await request(
+            () => api.get(`/weather/timeline?location=${safeLocation}&days=1`),
+            { silent: true }
+          );
+          if (timeline?.today?.hourly?.length) {
+            const currentHourData = timeline.today.hourly[0];
+            weather = {
+              location,
+              temp: currentHourData.temp,
+              humidity: currentHourData.humidity,
+              condition: currentHourData.condition,
+              advice: 'Normal farming conditions.',
+            };
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       return { weather, alerts };
     } catch (e) {
       console.error('Home data error:', e);
