@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Pressable, ScrollView, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
-import { AlertTriangle, BarChart3, Sprout, MessageSquare, Tractor } from 'lucide-react-native';
+import { AlertTriangle, BarChart3, Sprout, MessageSquare, Tractor, Sparkles, TrendingUp } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/reusables/alert';
@@ -142,6 +142,8 @@ export default function HomeScreen() {
         </View>
 
         <MoreToolsSection marginBottom={0} items={[
+          { label: 'Crop Recommend', sub: 'ML Soil & Climate Match', icon: Sparkles, color: '#0EA5E9', route: '/crop-recommendation' },
+          { label: 'Yield Predictor', sub: 'Area & Revenue Forecast', icon: TrendingUp, color: '#10B981', route: '/yield-prediction' },
           { label: 'Agri Flow', sub: 'Your farming roadmap', icon: Tractor, color: '#8B5CF6', route: '/agriflow' },
           { label: 'Reports', sub: 'Export & analytics', icon: BarChart3, color: '#F97316', route: '/reports' },
           { label: 'Daily Check', sub: 'Log daily health', icon: Sprout, color: '#10B981', route: '/daily-check' },

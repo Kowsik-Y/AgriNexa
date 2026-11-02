@@ -55,6 +55,16 @@ import { streamChatQuery, StreamChunk } from '@/services/chat-stream';
 
 const SUGGESTIONS = [
   {
+    icon: Sparkles,
+    text: 'Which crop should I grow based on my soil N-P-K and climate?',
+    title: 'Smart Crop Recommendation',
+  },
+  {
+    icon: TrendingUp,
+    text: 'How much harvest yield and revenue can I expect from 2 acres of Paddy?',
+    title: 'Crop Yield Prediction',
+  },
+  {
     icon: CloudSun,
     text: "What's the weather outlook for my crops this week?",
     title: 'Weather Outlook',
@@ -68,11 +78,6 @@ const SUGGESTIONS = [
     icon: Droplets,
     text: 'What is the optimal irrigation schedule right now?',
     title: 'Irrigation Advice',
-  },
-  {
-    icon: TrendingUp,
-    text: 'What are current wholesale mandi market prices?',
-    title: 'Market Prices',
   },
 ];
 
@@ -235,6 +240,14 @@ export function ChatThreadView({ conversationId }: Props) {
       'Agri Intelligence Shortcuts',
       'Choose an action to analyze with AI:',
       [
+        {
+          text: 'Crop Recommendation',
+          onPress: () => router.push('/crop-recommendation'),
+        },
+        {
+          text: 'Yield Prediction',
+          onPress: () => router.push('/yield-prediction'),
+        },
         {
           text: 'Crop Disease Scan',
           onPress: () => router.push('/scan'),

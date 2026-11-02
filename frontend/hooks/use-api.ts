@@ -610,9 +610,45 @@ export const useApi = () => {
     return await request(() => api.get('/prediction/growth-stage/status'));
   };
 
+  const recommendCrops = async (data: {
+    nitrogen: number;
+    phosphorus: number;
+    potassium: number;
+    ph: number;
+    temperature?: number;
+    humidity?: number;
+    rainfall?: number;
+    season?: string;
+    location?: string;
+    language?: string;
+  }) => {
+    return await request(() => api.post('/prediction/crop-recommendation', data));
+  };
+
+  const predictYield = async (data: {
+    crop: string;
+    area: number;
+    area_unit?: string;
+    season?: string;
+    soil_type?: string;
+    irrigation_type?: string;
+    fertilizer_level?: string;
+    location?: string;
+    language?: string;
+  }) => {
+    return await request(() => api.post('/prediction/yield-prediction', data));
+  };
+
+  const getPredictionToolsMeta = async () => {
+    return await request(() => api.get('/prediction/tools/meta'));
+  };
+
   return {
     loading,
     error,
+    recommendCrops,
+    predictYield,
+    getPredictionToolsMeta,
     getHomeData,
     getHourlyWeather,
     getWeatherTimeline,

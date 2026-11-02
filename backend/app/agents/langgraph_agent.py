@@ -44,6 +44,8 @@ class AgriAgentState(TypedDict, total=False):
     weather_data: Optional[Dict[str, Any]]
     market_data: Optional[Dict[str, Any]]
     rag_context: Optional[str]
+    crop_recommendations: Optional[List[Dict[str, Any]]]
+    yield_prediction_data: Optional[Dict[str, Any]]
 
     answer: str
     source: str
@@ -96,7 +98,7 @@ async def analyze_and_route_node(state: AgriAgentState) -> Dict[str, Any]:
         prompt = (
             "You are an agricultural intent classifier for Indian farmers.\n"
             "Analyze the farmer's query and output JSON with keys:\n"
-            "- intents: list of zero or more from ['weather', 'market', 'rag', 'plan', 'general']\n"
+            "- intents: list of zero or more from ['weather', 'market', 'rag', 'crop_recommendation', 'yield_prediction', 'plan', 'general']\n"
             "- crop: string or null\n"
             "- location: string or null\n"
             "- crop_stage: string or null\n\n"
@@ -132,6 +134,10 @@ async def analyze_and_route_node(state: AgriAgentState) -> Dict[str, Any]:
             intents.append("market")
         if any(w in lower_q for w in ["pest", "disease", "spray", "fungicide", "fertilizer", "nutrient", "soil", "npk", "blight", "borer"]):
             intents.append("rag")
+        if any(w in lower_q for w in ["recommend", "which crop", "what to grow", "what to plant", "suitable crop", "soil test", "crop choice"]):
+            intents.append("crop_recommendation")
+        if any(w in lower_q for w in ["yield", "production", "how many quintal", "harvest estimate", "how much yield", "expected harvest"]):
+            intents.append("yield_prediction")
         if any(w in lower_q for w in ["plan", "schedule", "routine", "guide", "steps", "harvest"]):
             intents.append("plan")
         if not intents:
@@ -210,6 +216,69 @@ async def fetch_rag_node(state: AgriAgentState) -> Dict[str, Any]:
     return {"rag_context": rag_context}
 
 
+async def recommend_crop_node(state: AgriAgentState) -> Dict[str, Any]:
+    """Smart Crop Recommendation engine powered by multi-variate Gaussian suitability."""
+    from app.services.ml_models.crop_recommender import recommend_crops
+
+    profile = state.get("farmer_profile") or {}
+    query = state.get("query", "")
+
+    n = float(profile.get("nitrogen") or 80.0)
+    p = float(profile.get("phosphorus") or 45.0)
+    k = float(profile.get("potassium") or 40.0)
+    ph = float(profile.get("ph") or 6.5)
+
+    n_match = re.search(r"n(?:itrogen)?\s*[:=]?\s*(\d+)", query, re.I)
+    if n_match:
+        n = float(n_match.group(1))
+    p_match = re.search(r"p(?:hosphorus)?\s*[:=]?\s*(\d+)", query, re.I)
+    if p_match:
+        p = float(p_match.group(1))
+    k_match = re.search(r"k(?:otassium)?\s*[:=]?\s*(\d+)", query, re.I)
+    if k_match:
+        k = float(k_match.group(1))
+    ph_match = re.search(r"ph\s*[:=]?\s*(\d+(?:\.\d+)?)", query, re.I)
+    if ph_match:
+        ph = float(ph_match.group(1))
+
+    weather_data = state.get("weather_data") or {}
+    temp = weather_data.get("temperature")
+    humidity = weather_data.get("humidity")
+
+    recs = recommend_crops(n=n, p=p, k=k, ph=ph, temp=temp, humidity=humidity)
+    return {"crop_recommendations": recs}
+
+
+async def predict_yield_node(state: AgriAgentState) -> Dict[str, Any]:
+    """Smart Yield Prediction engine calculating harvest output and mandi revenue."""
+    from app.services.ml_models.yield_predictor import predict_crop_yield
+
+    profile = state.get("farmer_profile") or {}
+    query = state.get("query", "")
+    crop = state.get("crop") or profile.get("crops") or "Rice"
+
+    area = 1.0
+    area_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:acres?|hectares?|ac|ha)", query, re.I)
+    if area_match:
+        area = float(area_match.group(1))
+    elif profile.get("farm_size"):
+        try:
+            area = float(profile.get("farm_size"))
+        except Exception:
+            pass
+
+    unit = "hectares" if "hectare" in query.lower() or "ha" in query.lower() else "acres"
+    soil_type = profile.get("soil_type") or "Loam"
+
+    prediction = predict_crop_yield(
+        crop_name=crop,
+        area=area,
+        area_unit=unit,
+        soil_type=soil_type,
+    )
+    return {"yield_prediction_data": prediction}
+
+
 async def synthesize_advisory_node(state: AgriAgentState) -> Dict[str, Any]:
     """Synthesize farmer-centric response using LangChain ChatOpenAI."""
     query = state.get("query", "")
@@ -261,6 +330,24 @@ async def synthesize_advisory_node(state: AgriAgentState) -> Dict[str, Any]:
         if rag_context:
             context_blocks.append(f"- Agronomic Knowledge Findings:\n{rag_context}")
 
+        crop_recs = state.get("crop_recommendations")
+        if crop_recs:
+            recs_text = "\n".join(
+                f"  * #{i+1} {r['crop']} ({r['tamil_name']}): {r['score']}% match, {r['suitability']}. Soil: {r['soil_type']}, Season: {r['season']}. Notes: {', '.join(r['nutrient_notes'])}"
+                for i, r in enumerate(crop_recs)
+            )
+            context_blocks.append(f"- ML Crop Recommendations & Suitability:\n{recs_text}")
+
+        yield_data = state.get("yield_prediction_data")
+        if yield_data:
+            context_blocks.append(
+                f"- ML Yield Forecast for {yield_data['input_area']} {yield_data['input_unit']} of {yield_data['crop']}:\n"
+                f"  * Expected Yield per Acre: {yield_data['yield_per_acre']['expected_quintals']} Q (Range: {yield_data['yield_per_acre']['min_quintals']}-{yield_data['yield_per_acre']['max_quintals']} Q)\n"
+                f"  * Total Expected Production: {yield_data['total_production']['expected_quintals']} Quintals\n"
+                f"  * Estimated Gross Market Revenue: {yield_data['financial_forecast']['formatted_revenue']} (Range: {yield_data['financial_forecast']['revenue_range_inr']})\n"
+                f"  * Key Intervention: {', '.join(yield_data['gap_closure_actions'])}"
+            )
+
         context_str = "\n".join(context_blocks) if context_blocks else "Standard agronomic practices."
 
         user_prompt = (
@@ -311,6 +398,10 @@ def determine_data_routes(state: AgriAgentState) -> List[str]:
         routes.append("fetch_market")
     if "rag" in intents or "plan" in intents:
         routes.append("fetch_rag")
+    if "crop_recommendation" in intents:
+        routes.append("recommend_crop")
+    if "yield_prediction" in intents:
+        routes.append("predict_yield")
 
     if not routes:
         # Direct synthesis for general conversations/questions
@@ -328,6 +419,8 @@ def build_agri_langgraph():
     workflow.add_node("fetch_weather", fetch_weather_node)
     workflow.add_node("fetch_market", fetch_market_node)
     workflow.add_node("fetch_rag", fetch_rag_node)
+    workflow.add_node("recommend_crop", recommend_crop_node)
+    workflow.add_node("predict_yield", predict_yield_node)
     workflow.add_node("synthesize_advisory", synthesize_advisory_node)
 
     # Edges
@@ -341,6 +434,8 @@ def build_agri_langgraph():
             "fetch_weather": "fetch_weather",
             "fetch_market": "fetch_market",
             "fetch_rag": "fetch_rag",
+            "recommend_crop": "recommend_crop",
+            "predict_yield": "predict_yield",
             "synthesize_advisory": "synthesize_advisory",
         },
     )
@@ -349,6 +444,8 @@ def build_agri_langgraph():
     workflow.add_edge("fetch_weather", "synthesize_advisory")
     workflow.add_edge("fetch_market", "synthesize_advisory")
     workflow.add_edge("fetch_rag", "synthesize_advisory")
+    workflow.add_edge("recommend_crop", "synthesize_advisory")
+    workflow.add_edge("predict_yield", "synthesize_advisory")
 
     workflow.add_edge("synthesize_advisory", END)
 
@@ -513,6 +610,24 @@ async def stream_agri_agent(
             context_blocks.append(f"- Mandi Market: Current price ₹{price}/quintal, Trend: {trend}")
         if rag_context:
             context_blocks.append(f"- Agronomic Knowledge Findings:\n{rag_context}")
+
+        crop_recs = state.get("crop_recommendations")
+        if crop_recs:
+            recs_text = "\n".join(
+                f"  * #{i+1} {r['crop']} ({r['tamil_name']}): {r['score']}% match, {r['suitability']}. Soil: {r['soil_type']}, Season: {r['season']}. Notes: {', '.join(r['nutrient_notes'])}"
+                for i, r in enumerate(crop_recs)
+            )
+            context_blocks.append(f"- ML Crop Recommendations & Suitability:\n{recs_text}")
+
+        yield_data = state.get("yield_prediction_data")
+        if yield_data:
+            context_blocks.append(
+                f"- ML Yield Forecast for {yield_data['input_area']} {yield_data['input_unit']} of {yield_data['crop']}:\n"
+                f"  * Expected Yield per Acre: {yield_data['yield_per_acre']['expected_quintals']} Q (Range: {yield_data['yield_per_acre']['min_quintals']}-{yield_data['yield_per_acre']['max_quintals']} Q)\n"
+                f"  * Total Expected Production: {yield_data['total_production']['expected_quintals']} Quintals\n"
+                f"  * Estimated Gross Market Revenue: {yield_data['financial_forecast']['formatted_revenue']} (Range: {yield_data['financial_forecast']['revenue_range_inr']})\n"
+                f"  * Key Intervention: {', '.join(yield_data['gap_closure_actions'])}"
+            )
 
         context_str = "\n".join(context_blocks) if context_blocks else "Standard agronomic practices."
         user_prompt = (
