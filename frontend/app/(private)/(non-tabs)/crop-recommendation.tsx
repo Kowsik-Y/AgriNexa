@@ -10,7 +10,6 @@ import {
   Droplets,
   Layers,
   ArrowRight,
-  RotateCcw,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -18,9 +17,9 @@ import { Button } from '@/components/reusables/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/reusables/card';
 import { Text } from '@/components/reusables/text';
 import { Icon } from '@/components/reusables/icon';
-import { Badge } from '@/components/reusables/badge';
 import { Spinner } from '@/components/Spinner';
 import { ResponsiveContainer } from '@/components/ResponsiveContainer';
+import { MarkdownContent } from '@/components/assistant/MarkdownContent';
 import { useApi } from '@/hooks/use-api';
 import { useAppContext } from '@/context/AppProvider';
 
@@ -141,7 +140,7 @@ export default function CropRecommendationScreen() {
           {/* Soil Input Card */}
           <Card className="border-border bg-card p-4 gap-4">
             <Text className="font-bold text-foreground text-base">Soil & Nutrients (kg/ha)</Text>
-            
+
             <View className="flex-row gap-3">
               <View className="flex-1 gap-1.5">
                 <Text variant="muted" className="text-xs">Nitrogen (N)</Text>
@@ -257,18 +256,16 @@ export default function CropRecommendationScreen() {
                 return (
                   <Card
                     key={crop.crop}
-                    className={`p-4 rounded-2xl border ${
-                      isTop
-                        ? 'border-emerald-500/40 bg-emerald-500/10 dark:bg-emerald-500/15'
-                        : 'border-border bg-card'
-                    } gap-3`}
+                    className={`p-4 rounded-2xl border ${isTop
+                      ? 'border-emerald-500/40 bg-emerald-500/10 dark:bg-emerald-500/15'
+                      : 'border-border bg-card'
+                      } gap-3`}
                   >
                     <View className="flex-row items-center justify-between">
                       <View className="flex-row items-center gap-2.5 flex-1">
                         <View
-                          className={`w-9 h-9 rounded-xl items-center justify-center ${
-                            isTop ? 'bg-emerald-500/20' : 'bg-primary/10'
-                          }`}
+                          className={`w-9 h-9 rounded-xl items-center justify-center ${isTop ? 'bg-emerald-500/20' : 'bg-primary/10'
+                            }`}
                         >
                           <Icon
                             as={Sprout}
@@ -288,14 +285,12 @@ export default function CropRecommendationScreen() {
 
                       <View className="items-end gap-1">
                         <View
-                          className={`px-2.5 py-1 rounded-full ${
-                            isTop ? 'bg-emerald-500' : 'bg-primary/20'
-                          }`}
+                          className={`px-2.5 py-1 rounded-full ${isTop ? 'bg-emerald-500' : 'bg-primary/20'
+                            }`}
                         >
                           <Text
-                            className={`text-xs font-bold ${
-                              isTop ? 'text-white' : 'text-primary'
-                            }`}
+                            className={`text-xs font-bold ${isTop ? 'text-white' : 'text-primary'
+                              }`}
                           >
                             {crop.score}% Match
                           </Text>
@@ -333,15 +328,15 @@ export default function CropRecommendationScreen() {
               {/* GenAI Agronomist Report Card */}
               {result.ai_agronomist_report && (
                 <Card className="border-sky-500/30 bg-sky-500/10 dark:bg-sky-500/15 p-4 rounded-2xl gap-2.5">
-                  <View className="flex-row items-center gap-2">
+                  <View className="flex-row items-center gap-2 pb-1 border-b border-sky-500/20">
                     <Icon as={Sparkles} size={18} className="text-sky-600 dark:text-sky-400" />
                     <Text className="font-bold text-sky-800 dark:text-sky-200 text-sm">
-                      GenAI Agronomist Advisory Report
+                      {appLanguage === 'Tamil'
+                        ? 'GenAI வேளாண் ஆலோசகர் அறிக்கை'
+                        : 'GenAI Agronomist Advisory Report'}
                     </Text>
                   </View>
-                  <Text className="text-xs leading-relaxed text-sky-950 dark:text-sky-100">
-                    {result.ai_agronomist_report}
-                  </Text>
+                  <MarkdownContent content={result.ai_agronomist_report} />
                 </Card>
               )}
 

@@ -20,6 +20,7 @@ import { Text } from '@/components/reusables/text';
 import { Icon } from '@/components/reusables/icon';
 import { Spinner } from '@/components/Spinner';
 import { ResponsiveContainer } from '@/components/ResponsiveContainer';
+import { MarkdownContent } from '@/components/assistant/MarkdownContent';
 import { useApi } from '@/hooks/use-api';
 import { useAppContext } from '@/context/AppProvider';
 
@@ -112,9 +113,6 @@ export default function YieldPredictionScreen() {
           {/* Header */}
           <View className="gap-1.5">
             <View className="flex-row items-center gap-2">
-              <View className="w-8 h-8 rounded-lg bg-emerald-500/15 items-center justify-center">
-                <Icon as={TrendingUp} size={18} className="text-emerald-600 dark:text-emerald-400" />
-              </View>
               <Text variant="h3">
                 {appLanguage === 'Tamil' ? 'மகசூல் மற்றும் வருவாய் கணிப்பு' : 'Yield & Revenue Forecast'}
               </Text>
@@ -337,15 +335,15 @@ export default function YieldPredictionScreen() {
               {/* GenAI Optimization Plan Card */}
               {result.ai_yield_plan && (
                 <Card className="border-sky-500/30 bg-sky-500/10 dark:bg-sky-500/15 p-4 rounded-2xl gap-2.5">
-                  <View className="flex-row items-center gap-2">
+                  <View className="flex-row items-center gap-2 pb-1 border-b border-sky-500/20">
                     <Icon as={Sparkles} size={18} className="text-sky-600 dark:text-sky-400" />
                     <Text className="font-bold text-sky-800 dark:text-sky-200 text-sm">
-                      GenAI Yield Enhancement Plan
+                      {appLanguage === 'Tamil'
+                        ? 'GenAI மகசூல் மேம்பாட்டுத் திட்டம்'
+                        : 'GenAI Yield Enhancement Plan'}
                     </Text>
                   </View>
-                  <Text className="text-xs leading-relaxed text-sky-950 dark:text-sky-100">
-                    {result.ai_yield_plan}
-                  </Text>
+                  <MarkdownContent content={result.ai_yield_plan} />
                 </Card>
               )}
 
