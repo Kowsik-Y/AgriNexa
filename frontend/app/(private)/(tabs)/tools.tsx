@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, ScrollView } from 'react-native';
-import { FileText, CalendarDays, MessageSquare, Lightbulb, LayoutGrid, Tractor, Camera, Sprout } from 'lucide-react-native';
+import { FileText, CalendarDays, MessageSquare, Lightbulb, LayoutGrid, Tractor, Camera, Sprout, Sparkles, TrendingUp } from 'lucide-react-native';
 
 import { Typography } from '@/components/Typography';
 import { useTheme } from '@/hooks/use-theme';
@@ -10,6 +10,8 @@ import { CropScanIcon } from '@/components/CropScanIcon';
 const TOOL_ITEMS: MoreToolsItem[] = [
   { label: 'Crop Scan', sub: 'AI disease & pest detection', icon: CropScanIcon as any, color: '#10B981', route: '/scan' },
   { label: 'Growth Stage', sub: 'Predict crop growth stage with ML', icon: Sprout, color: '#22C55E', route: '/growth-stage' },
+  { label: 'Crop Recommend', sub: 'ML Soil & Climate Match', icon: Sparkles, color: '#0EA5E9', route: '/crop-recommendation' },
+  { label: 'Yield Predictor', sub: 'Area & Revenue Forecast', icon: TrendingUp, color: '#10B981', route: '/yield-prediction' },
   { label: 'Assistant', sub: 'Talk to your AI farming agent', icon: MessageSquare, color: '#3B82F6', route: '/assistant' },
   { label: 'Crop Advice', sub: 'Personalised AI recommendations', icon: Lightbulb, color: '#8B5CF6', route: '/advice' },
   { label: 'Reports', sub: 'Monitoring summaries & export', icon: FileText, color: '#F97316', route: '/reports' },

@@ -2,6 +2,7 @@ import axios from 'axios';
 import { useState } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
 import { clearAuthData, getSession } from '@/lib/auth-storage';
 
 // Use environment variable for the API URL
@@ -466,28 +467,70 @@ export const useApi = () => {
       const session = sessionStr ? JSON.parse(sessionStr) : null;
       const token = session?.token;
 
-      const response = await fetch(`${BASE_URL}${endpoint}`, {
-        method,
-        body: formData,
-        headers: {
-          Accept: 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
+      if (Platform.OS === 'web') {
+        const response = await fetch(`${BASE_URL}${endpoint}`, {
+          method,
+          body: formData,
+          headers: {
+            Accept: 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
 
-      const data = await response.json();
-      if (!response.ok) {
-        let msg = data.detail || 'Upload failed';
-        if (Array.isArray(msg)) {
-          msg = msg.map((d: any) => d.msg || JSON.stringify(d)).join(', ');
-        } else if (typeof msg === 'object') {
-          msg = msg.msg || JSON.stringify(msg);
+        const data = await response.json();
+        if (!response.ok) {
+          let msg = data.detail || 'Upload failed';
+          if (Array.isArray(msg)) {
+            msg = msg.map((d: any) => d.msg || JSON.stringify(d)).join(', ');
+          } else if (typeof msg === 'object') {
+            msg = msg.msg || JSON.stringify(msg);
+          }
+          throw new Error(msg);
         }
-        throw new Error(msg);
+        return data;
       }
-      return data;
+
+      // Native mobile (Android/iOS): Use native XMLHttpRequest to avoid Expo's Winter fetch "Unsupported FormDataPart implementation"
+      return await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open(method, `${BASE_URL}${endpoint}`);
+        xhr.setRequestHeader('Accept', 'application/json');
+        if (token) {
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        }
+        xhr.onload = () => {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(data);
+            } else {
+              let msg = data.detail || `Upload failed with status ${xhr.status}`;
+              if (Array.isArray(msg)) {
+                msg = msg.map((d: any) => d.msg || JSON.stringify(d)).join(', ');
+              } else if (typeof msg === 'object') {
+                msg = msg.msg || JSON.stringify(msg);
+              }
+              reject(new Error(msg));
+            }
+          } catch {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve({ status: 'ok' });
+            } else {
+              reject(new Error(`Server error (${xhr.status})`));
+            }
+          }
+        };
+        xhr.onerror = () => {
+          reject(new Error('Network error during file upload'));
+        };
+        xhr.ontimeout = () => {
+          reject(new Error('Upload timed out'));
+        };
+        xhr.timeout = 60000;
+        xhr.send(formData);
+      });
     } catch (err: any) {
-      if (err.message.includes('401')) {
+      if (err.message && err.message.includes('401')) {
         await clearAuthData();
       }
       setError(err.message);
@@ -505,23 +548,82 @@ export const useApi = () => {
     fileName: string,
     type: string
   ) => {
-    const formData = new FormData();
+    setLoading(true);
+    setError(null);
+    try {
+      const sessionStr = await AsyncStorage.getItem('user_session');
+      const session = sessionStr ? JSON.parse(sessionStr) : null;
+      const token = session?.token;
 
-    if (Platform.OS === 'web') {
-      // Web FormData requires a Blob/File, not a React Native descriptor object.
-      const fileResponse = await fetch(uri);
-      const fileBlob = await fileResponse.blob();
-      formData.append(fieldName, fileBlob, fileName);
-    } else {
-      // @ts-ignore React Native fetch FormData file descriptor
-      formData.append(fieldName, {
-        uri,
-        name: fileName,
-        type,
-      });
+      // Native mobile (Android/iOS): Use FileSystem.uploadAsync for direct, native multipart uploads
+      if (Platform.OS !== 'web' && (uri.startsWith('file:') || uri.startsWith('content:') || uri.startsWith('/'))) {
+        try {
+          const uploadResult = await FileSystem.uploadAsync(
+            `${BASE_URL}${endpoint}`,
+            uri,
+            {
+              fieldName: fieldName || 'file',
+              httpMethod: 'POST',
+              uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+              headers: {
+                Accept: 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+            }
+          );
+
+          let data: any = {};
+          try {
+            data = JSON.parse(uploadResult.body);
+          } catch {
+            data = { raw: uploadResult.body };
+          }
+
+          if (uploadResult.status >= 400) {
+            let msg = data.detail || 'Upload failed';
+            if (Array.isArray(msg)) {
+              msg = msg.map((d: any) => d.msg || JSON.stringify(d)).join(', ');
+            } else if (typeof msg === 'object') {
+              msg = msg.msg || JSON.stringify(msg);
+            }
+            throw new Error(msg);
+          }
+          return data;
+        } catch (fsErr: any) {
+          console.warn('FileSystem.uploadAsync fallback to XHR:', fsErr.message);
+        }
+      }
+
+      // Web or fallback
+      const formData = new FormData();
+      if (Platform.OS === 'web') {
+        const fileResponse = await fetch(uri);
+        const fileBlob = await fileResponse.blob();
+        formData.append(fieldName, fileBlob, fileName);
+      } else {
+        const cleanUri = Platform.OS === 'android' && !uri.startsWith('file://') && !uri.startsWith('content://')
+          ? `file://${uri}`
+          : uri;
+
+        // @ts-ignore React Native fetch FormData file descriptor
+        formData.append(fieldName, {
+          uri: cleanUri,
+          name: fileName,
+          type: type || 'image/jpeg',
+        });
+      }
+
+      return await uploadFormData(endpoint, formData, 'POST');
+    } catch (err: any) {
+      if (err.message && err.message.includes('401')) {
+        await clearAuthData();
+      }
+      setError(err.message);
+      console.error(`Upload error (${endpoint}):`, err.message);
+      return null;
+    } finally {
+      setLoading(false);
     }
-
-    return uploadFormData(endpoint, formData, 'POST');
   };
 
   const uploadFile = async (
