@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { View, ScrollView, Pressable, TextInput } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import {
-  Sparkles,
   Sprout,
   CheckCircle2,
   AlertCircle,
@@ -14,7 +13,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { Button } from '@/components/reusables/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/reusables/card';
+import { Card } from '@/components/reusables/card';
 import { Text } from '@/components/reusables/text';
 import { Icon } from '@/components/reusables/icon';
 import { Spinner } from '@/components/Spinner';
@@ -102,9 +101,6 @@ export default function CropRecommendationScreen() {
           {/* Header Description */}
           <View className="gap-1.5">
             <View className="flex-row items-center gap-2">
-              <View className="w-8 h-8 rounded-lg bg-sky-500/15 items-center justify-center">
-                <Icon as={Sparkles} size={18} className="text-sky-600 dark:text-sky-400" />
-              </View>
               <Text variant="h3">
                 {appLanguage === 'Tamil' ? 'ஸ்மார்ட் பயிர் தேர்வு' : 'ML Smart Crop Choice'}
               </Text>
@@ -112,7 +108,7 @@ export default function CropRecommendationScreen() {
             <Text variant="muted" className="text-sm leading-relaxed">
               {appLanguage === 'Tamil'
                 ? 'உங்கள் மண்ணின் N-P-K மற்றும் pH தரவுகளை உள்ளிட்டு, செயற்கை நுண்ணறிவு பரிந்துரைகளைப் பெறுங்கள்.'
-                : 'Enter your soil N-P-K nutrients and pH to calculate scientifically optimal crops with GenAI agronomic analysis.'}
+                : 'Enter your soil N-P-K nutrients and pH to calculate scientifically optimal crops agronomic analysis.'}
             </Text>
           </View>
 
@@ -232,9 +228,8 @@ export default function CropRecommendationScreen() {
                 <Spinner size={18} />
               ) : (
                 <>
-                  <Icon as={Sparkles} size={18} className="text-primary-foreground" />
                   <Text className="text-primary-foreground font-bold">
-                    {appLanguage === 'Tamil' ? 'பரிந்துரைகளைக் கண்டறியவும்' : 'Recommend Best Crops with AI'}
+                    {appLanguage === 'Tamil' ? 'பரிந்துரைகளைக் கண்டறியவும்' : 'Recommend Best Crops'}
                   </Text>
                 </>
               )}
@@ -325,15 +320,14 @@ export default function CropRecommendationScreen() {
                 );
               })}
 
-              {/* GenAI Agronomist Report Card */}
+              {/*  Agronomist Report Card */}
               {result.ai_agronomist_report && (
                 <Card className="border-sky-500/30 bg-sky-500/10 dark:bg-sky-500/15 p-4 rounded-2xl gap-2.5">
                   <View className="flex-row items-center gap-2 pb-1 border-b border-sky-500/20">
-                    <Icon as={Sparkles} size={18} className="text-sky-600 dark:text-sky-400" />
                     <Text className="font-bold text-sky-800 dark:text-sky-200 text-sm">
                       {appLanguage === 'Tamil'
-                        ? 'GenAI வேளாண் ஆலோசகர் அறிக்கை'
-                        : 'GenAI Agronomist Advisory Report'}
+                        ? 'வேளாண் ஆலோசகர் அறிக்கை'
+                        : 'Agronomist Advisory Report'}
                     </Text>
                   </View>
                   <MarkdownContent content={result.ai_agronomist_report} />
